@@ -1,0 +1,25 @@
+{
+  "name": "brand-order-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "White-label e-commerce order management for Instagram D2C brands.",
+  "scripts": {
+    "build": "pnpm --filter \"./apps/*\" build",
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "lint": "pnpm --filter \"./packages/*\" lint && pnpm --filter \"./apps/*\" lint",
+    "test": "pnpm --filter \"./packages/*\" test && pnpm --filter \"./apps/*\" test",
+    "db:migrate": "pnpm --filter database prisma migrate dev",
+    "db:generate": "pnpm --filter database prisma generate"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.10.0"
+}

@@ -1,0 +1,527 @@
+# 🛍️ Brand Order System
+
+A white-label e-commerce order management platform designed for Instagram D2C brands. Built with a modern monorepo architecture using pnpm workspaces, featuring real-time inventory management, Razorpay payment integration, and WhatsApp notifications.
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Prerequisites](#-prerequisites)
+- [Getting Started](#-getting-started)
+- [Environment Variables](#-environment-variables)
+- [Development](#-development)
+- [Database](#-database)
+- [API Documentation](#-api-documentation)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
+
+## ✨ Features
+
+### Admin Panel
+- 🔐 Secure authentication with JWT
+- 📦 Product management with variants (size, color, etc.)
+- 🖼️ Image upload to AWS S3
+- 📊 Real-time inventory tracking with reservation system
+- 📅 Product drop scheduling with early access
+- 👥 Customer relationship management (CRM)
+- 📈 Order management and fulfillment
+- 🚚 Shipping tracking integration
+- 💰 Razorpay payment gateway configuration
+- 📱 Activity logs and analytics
+
+### Checkout Experience
+- 🎨 White-label branded checkout pages
+- 🛒 Cart with automatic inventory reservation
+- 💳 Razorpay payment integration
+- 📱 WhatsApp order notifications
+- 🔒 Secure payment verification
+- 📦 Real-time stock availability
+- 🎯 Product drop countdown timers
+
+### Backend API
+- ⚡ Express.js REST API
+- 🔄 Redis caching for performance
+- 🔐 JWT authentication & authorization
+- 📊 PostgreSQL with Prisma ORM
+- 🎫 Automatic inventory reservation system
+- 💸 Razorpay webhook handling
+- 📱 WhatsApp notification service
+- 🔒 Encrypted payment credentials storage
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **Framework**: Next.js 14+ (App Router)
+- **UI Library**: React 18+
+- **Styling**: Tailwind CSS 4
+- **Components**: Radix UI, Lucide Icons
+- **State Management**: React Hooks
+- **HTTP Client**: Axios
+
+### Backend
+- **Runtime**: Node.js 20+
+- **Framework**: Express.js
+- **Language**: TypeScript
+- **ORM**: Prisma
+- **Authentication**: JWT (jsonwebtoken)
+- **Password Hashing**: bcryptjs
+
+### Database & Cache
+- **Database**: PostgreSQL 15
+- **Cache**: Redis 7
+- **Migrations**: Prisma Migrate
+
+### Infrastructure
+- **Monorepo**: pnpm Workspaces
+- **Containerization**: Docker & Docker Compose
+- **Storage**: AWS S3
+- **Payment**: Razorpay
+- **Notifications**: WhatsApp Business API
+
+## 📁 Project Structure
+
+```
+brand-order-system/
+├── apps/
+│   ├── admin/              # Next.js admin dashboard
+│   │   ├── app/
+│   │   │   ├── (auth)/     # Authentication pages
+│   │   │   │   └── login/
+│   │   │   └── (dashboard)/ # Protected dashboard pages
+│   │   │       ├── dashboard/
+│   │   │       ├── products/
+│   │   │       ├── orders/
+│   │   │       └── customers/
+│   │   ├── components/     # React components
+│   │   │   ├── layout/
+│   │   │   └── ui/
+│   │   └── lib/            # Utilities & API client
+│   │
+│   ├── api/                # Express.js backend
+│   │   └── src/
+│   │       ├── controllers/
+│   │       ├── routes/
+│   │       ├── services/
+│   │       ├── middleware/
+│   │       └── index.ts
+│   │
+│   └── checkout/           # Next.js checkout app
+│       └── app/
+│
+├── packages/
+│   ├── database/           # Prisma schema & client
+│   │   ├── prisma/
+│   │   │   └── schema.prisma
+│   │   └── index.ts
+│   │
+│   ├── types/              # Shared TypeScript types
+│   │   └── index.ts
+│   │
+│   └── ui/                 # Shared UI components
+│       └── components/
+│
+├── scripts/
+│   ├── setup-dev.sh        # Development setup script
+│   ├── deploy.sh           # Deployment script
+│   └── backup-db.sh        # Database backup script
+│
+├── docker-compose.yml      # Docker services configuration
+├── pnpm-workspace.yaml     # Monorepo workspace config
+└── .env.example            # Environment variables template
+```
+
+## 📋 Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js** >= 20.0.0
+- **pnpm** >= 8.0.0
+- **Docker** & **Docker Compose**
+- **Git**
+
+### Install pnpm
+
+```bash
+npm install -g pnpm
+```
+
+### Install Docker
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (Windows/Mac)
+- [Docker Engine](https://docs.docker.com/engine/install/) (Linux)
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd brand-order-system
+```
+
+### 2. Environment Setup
+
+Copy the example environment file and configure your variables:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your actual configuration values (see [Environment Variables](#-environment-variables) section).
+
+### 3. Automated Setup (Recommended)
+
+Run the setup script to install dependencies and start services:
+
+```bash
+chmod +x scripts/setup-dev.sh
+./scripts/setup-dev.sh
+```
+
+### 4. Manual Setup (Alternative)
+
+If you prefer manual setup:
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start Docker services (PostgreSQL & Redis)
+docker-compose up -d
+
+# Generate Prisma client
+pnpm db:generate
+
+# Run database migrations
+pnpm db:migrate
+
+# Build shared packages
+pnpm --filter @brand-order-system/types build
+pnpm --filter @brand-order-system/ui build
+```
+
+### 5. Start Development Servers
+
+Open three terminal windows:
+
+```bash
+# Terminal 1: API Server (Port 4000)
+cd apps/api
+pnpm dev
+
+# Terminal 2: Admin Panel (Port 3000)
+cd apps/admin
+pnpm dev
+
+# Terminal 3: Checkout App (Port 3002)
+cd apps/checkout
+pnpm dev
+```
+
+### 6. Access the Applications
+
+- **Admin Panel**: http://localhost:3000
+- **API Server**: http://localhost:4000
+- **Checkout**: http://localhost:3002
+
+## 🔐 Environment Variables
+
+### Required Variables
+
+```bash
+# Database
+DATABASE_URL="postgresql://branduser:brandpassword@localhost:5432/brandorder"
+
+# Redis Cache
+REDIS_URL="redis://localhost:6379"
+
+# Authentication
+JWT_SECRET="your-super-secret-jwt-key-min-32-chars"
+ENCRYPTION_KEY="your-32-byte-encryption-key-for-razorpay-secrets"
+
+# Application URLs
+ADMIN_URL="http://localhost:3000"
+CHECKOUT_URL="http://localhost:3002"
+PORT=4000
+```
+
+### Optional Variables
+
+```bash
+# AWS S3 (for image uploads)
+AWS_ACCESS_KEY_ID="your-aws-access-key-id"
+AWS_SECRET_ACCESS_KEY="your-aws-secret-access-key"
+AWS_REGION="ap-south-1"
+AWS_S3_BUCKET="your-s3-bucket-name"
+
+# Razorpay (payment gateway)
+NEXT_PUBLIC_RAZORPAY_KEY_ID="rzp_test_xxxxxxxxxxxxx"
+RAZORPAY_WEBHOOK_SECRET="your-razorpay-webhook-secret"
+
+# WhatsApp (notifications)
+WHATSAPP_API_KEY="your-whatsapp-provider-api-key"
+WHATSAPP_PHONE_NUMBER="919876543210"
+```
+
+## 💻 Development
+
+### Available Scripts
+
+```bash
+# Install dependencies for all workspaces
+pnpm install
+
+# Run all apps in development mode
+pnpm dev
+
+# Build all apps for production
+pnpm build
+
+# Run linting across all packages
+pnpm lint
+
+# Run tests
+pnpm test
+
+# Database commands
+pnpm db:generate    # Generate Prisma client
+pnpm db:migrate     # Run migrations
+```
+
+### Working with Individual Apps
+
+```bash
+# Run commands for specific workspace
+pnpm --filter admin dev
+pnpm --filter api build
+pnpm --filter @brand-order-system/database db:generate
+```
+
+## 🗄️ Database
+
+### Schema Overview
+
+The database includes the following main entities:
+
+- **Users**: Brand owners with authentication
+- **Products**: Product catalog with variants
+- **Variants**: Product variations (size, color, etc.)
+- **Inventory**: Stock management with reservation system
+- **Orders**: Order tracking and fulfillment
+- **Customers**: CRM and customer data
+- **Addresses**: Shipping addresses
+- **CartReservations**: Temporary inventory holds
+- **ActivityLogs**: Audit trail
+
+### Database Commands
+
+```bash
+# Create a new migration
+cd packages/database
+pnpm prisma migrate dev --name migration_name
+
+# Apply migrations
+pnpm prisma migrate deploy
+
+# Reset database (WARNING: deletes all data)
+pnpm prisma migrate reset
+
+# Open Prisma Studio (GUI)
+pnpm prisma studio
+```
+
+### Backup & Restore
+
+```bash
+# Backup database
+./scripts/backup-db.sh
+
+# Restore from backup
+docker exec -i brand_db psql -U branduser -d brandorder < backup.sql
+```
+
+## 📡 API Documentation
+
+### Authentication
+
+#### Register User
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "email": "brand@example.com",
+  "password": "securepassword",
+  "brandName": "My Brand"
+}
+```
+
+#### Login
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "brand@example.com",
+  "password": "securepassword"
+}
+```
+
+### Products
+
+#### Get All Products
+```http
+GET /api/products
+Authorization: Bearer <token>
+```
+
+#### Create Product
+```http
+POST /api/products
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Premium T-Shirt",
+  "description": "High quality cotton t-shirt",
+  "basePrice": 999.00,
+  "checkoutSlug": "premium-tshirt",
+  "variants": [
+    {
+      "name": "Size M",
+      "sku": "TSHIRT-M",
+      "inventoryCount": 50,
+      "priceAdjustment": 0
+    }
+  ]
+}
+```
+
+### Checkout
+
+#### Create Order
+```http
+POST /api/checkout/create-order
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "variantId": "uuid",
+      "quantity": 2
+    }
+  ],
+  "customer": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "9876543210"
+  },
+  "address": {
+    "addressLine1": "123 Main St",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "pincode": "400001"
+  }
+}
+```
+
+## 🚀 Deployment
+
+### Production Build
+
+```bash
+# Build all applications
+pnpm build
+
+# Start production servers
+cd apps/api && pnpm start
+cd apps/admin && pnpm start
+cd apps/checkout && pnpm start
+```
+
+### Docker Deployment
+
+```bash
+# Build and start all services
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Environment Checklist
+
+Before deploying to production:
+
+- [ ] Set strong `JWT_SECRET` and `ENCRYPTION_KEY`
+- [ ] Configure production database URL
+- [ ] Set up AWS S3 bucket for images
+- [ ] Configure Razorpay production keys
+- [ ] Set up WhatsApp Business API
+- [ ] Enable HTTPS/SSL certificates
+- [ ] Configure CORS origins
+- [ ] Set up monitoring and logging
+- [ ] Configure backup strategy
+- [ ] Set up CDN for static assets
+
+## 🏗️ Architecture Highlights
+
+### Inventory Reservation System
+- Automatic cart reservation with configurable timeout
+- Prevents overselling during checkout
+- Background job to release expired reservations
+
+### Payment Flow
+1. Customer adds items to cart (inventory reserved)
+2. Razorpay order created with reserved items
+3. Payment processed through Razorpay
+4. Webhook verifies payment
+5. Order confirmed, inventory deducted
+6. WhatsApp notification sent
+
+### Security Features
+- JWT-based authentication
+- Password hashing with bcryptjs
+- Encrypted Razorpay credentials
+- CORS protection
+- Helmet.js security headers
+- Input validation with Zod
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Code Style
+
+- Use TypeScript for type safety
+- Follow ESLint and Prettier configurations
+- Write meaningful commit messages
+- Add comments for complex logic
+- Update documentation for new features
+
+## 📝 License
+
+This project is proprietary and confidential.
+
+## 🆘 Support
+
+For issues and questions:
+
+- Create an issue in the repository
+- Contact the development team
+- Check the documentation
+
+## 🙏 Acknowledgments
+
+- Built with Next.js, Express, and Prisma
+- UI components from Radix UI
+- Icons from Lucide
+- Styled with Tailwind CSS
+
+---
+
+**Made with ❤️ for Instagram D2C Brands**

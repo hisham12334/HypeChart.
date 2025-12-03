@@ -1,0 +1,63 @@
+import express = require('express');
+import cors = require('cors');
+import helmet from 'helmet';
+import morgan = require('morgan');
+import { config } from 'dotenv';
+import { AuthService } from './services/auth.service';
+import { PrismaClient } from '@brand-order-system/database';
+import productRoutes from './routes/product.routes';
+import checkoutRoutes from './routes/checkout.routes';
+
+config();
+
+const app = express();
+const port = process.env.PORT || 4000;
+const prisma = new PrismaClient();
+const authService = new AuthService();
+
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(cors({
+  origin: [process.env.ADMIN_URL || 'http://localhost:3000', process.env.CHECKOUT_URL || 'http://localhost:3001'],
+  credentials: true
+}));
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.use('/api/products', productRoutes);
+
+// Register Route (Temporary for setup)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, brandName } = req.body;
+    const passwordHash = await authService.hashPassword(password);
+    
+    const user = await prisma.user.create({
+      data: { email, passwordHash, brandName }
+    });
+    
+    res.json({ success: true, user: { id: user.id, email: user.email } });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Login Route
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const result = await authService.login(email, password);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(401).json({ success: false, error: error.message });
+  }
+});
+
+app.use('/api/checkout', checkoutRoutes);
+
+app.listen(port, () => {
+  console.log(`🚀 API Server running at http://localhost:${port}`);
+});
