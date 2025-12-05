@@ -10,7 +10,7 @@ import Link from 'next/link';
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const variantId = searchParams.get('variantId');
-  const productId = searchParams.get('productId');
+  const slug = searchParams.get('slug');
   const quantity = searchParams.get('qty') || '1';
   const total = searchParams.get('total');
   
@@ -21,12 +21,12 @@ function CheckoutContent() {
 
   useEffect(() => {
     const fetchProduct = async () => {
-      if (!productId) {
+      if (!slug) {
         setDataLoading(false);
         return;
       }
       try {
-        const res = await apiClient.get(`/checkout/products/${productId}`);
+        const res = await apiClient.get(`/checkout/products/${slug}`);
         if (res.data.success) {
           const productData = res.data.data;
           setProduct(productData);
@@ -44,7 +44,7 @@ function CheckoutContent() {
     };
     
     fetchProduct();
-  }, [productId, variantId]);
+  }, [slug, variantId]);
 
   const handlePayment = (e: React.FormEvent) => {
     e.preventDefault();

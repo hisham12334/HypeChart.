@@ -28,8 +28,8 @@ export default function ProductPage() {
 
   const handleBuyNow = () => {
     if (!selectedVariant) return alert('Please select a size to continue.');
-    // Navigate to checkout with the variant ID in the URL
-    router.push(`/cart?variantId=${selectedVariant}&productId=${product.id}`);
+    // Navigate to cart with the variant ID and product slug
+    router.push(`/cart?variantId=${selectedVariant}&slug=${params.slug}`);
   };
 
   if (loading) {

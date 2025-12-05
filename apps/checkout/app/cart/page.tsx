@@ -9,7 +9,7 @@ function CartContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const variantId = searchParams.get('variantId');
-  const productId = searchParams.get('productId');
+  const slug = searchParams.get('slug');
 
   const [product, setProduct] = useState<any>(null);
   const [variant, setVariant] = useState<any>(null);
@@ -19,12 +19,12 @@ function CartContent() {
   // Fetch Product Data
   useEffect(() => {
     const fetchProduct = async () => {
-      if (!productId) {
+      if (!slug) {
         setLoading(false);
         return;
       }
       try {
-        const res = await apiClient.get(`/checkout/products/${productId}`);
+        const res = await apiClient.get(`/checkout/products/${slug}`);
         if (res.data.success) {
           const productData = res.data.data;
           setProduct(productData);
@@ -43,7 +43,7 @@ function CartContent() {
     };
     
     fetchProduct();
-  }, [productId, variantId]);
+  }, [slug, variantId]);
 
   // Calculations
   const mockPrice = product?.basePrice || 1499; 
@@ -52,7 +52,7 @@ function CartContent() {
   const total = subtotal + shipping;
 
   const handleCheckout = () => {
-    router.push(`/checkout?variantId=${variantId}&productId=${productId}&qty=${quantity}&total=${total}`);
+    router.push(`/checkout?variantId=${variantId}&slug=${slug}&qty=${quantity}&total=${total}`);
   };
 
   if (loading) {
