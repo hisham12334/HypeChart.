@@ -9,16 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@brand-order-system/types": "workspace:*",
+    "@brand-order-system/ui": "workspace:*",
+    "axios": "^1.13.2",
+    "lucide-react": "^0.555.0",
     "next": "^14.0.0",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "@brand-order-system/ui": "workspace:*",
-    "@brand-order-system/types": "workspace:*"
+    "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
-    "typescript": "^5.0.0"
+    "@types/node": "^20.19.25",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "3",
+    "typescript": "^5.9.3"
   }
 }
