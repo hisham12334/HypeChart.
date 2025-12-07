@@ -102,7 +102,7 @@ export default function NewProductPage() {
     setLoading(true);
 
     try {
-      await apiClient.post('/products', {
+      const payload = {
         name,
         description,
         basePrice: parseFloat(basePrice),
@@ -111,13 +111,25 @@ export default function NewProductPage() {
           ...v,
           inventoryCount: parseInt(v.inventoryCount.toString())
         }))
-      });
+      };
+
+      console.log('Submitting product:', payload);
+
+      await apiClient.post('/products', payload);
 
       toast.success('Product created successfully');
       router.push('/products');
     } catch (error: any) {
-      console.error(error);
-      toast.error('Failed to create product');
+      console.error('Product creation error:', error);
+      
+      // Show detailed error message
+      const errorMessage = error.response?.data?.error || error.response?.data?.details?.[0]?.message || 'Failed to create product';
+      toast.error(errorMessage);
+      
+      // Log full error details for debugging
+      if (error.response?.data?.details) {
+        console.error('Validation errors:', error.response.data.details);
+      }
     } finally {
       setLoading(false);
     }

@@ -249,3 +249,19 @@ model ActivityLog {
   @@index([createdAt(sort: Desc)])
   @@map("activity_logs")
 }
+
+// ===================================
+// WEBHOOK EVENTS
+// ===================================
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique @map("event_id")
+  eventType   String   @map("event_type")
+  payload     Json
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@index([eventId])
+  @@index([processedAt])
+  @@map("webhook_events")
+}

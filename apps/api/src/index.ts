@@ -7,6 +7,7 @@ import { AuthService } from './services/auth.service';
 import { PrismaClient } from '@brand-order-system/database';
 import productRoutes from './routes/product.routes';
 import checkoutRoutes from './routes/checkout.routes';
+import webhookRoutes from './routes/webhook.routes';
 
 config();
 
@@ -17,13 +18,17 @@ const authService = new AuthService();
 
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(express.json());
 app.use(cors({
   origin: '*', // Allow all origins for development (Admin:3000, Checkout:3001)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'idempotency-key']
 }));
 
+// IMPORTANT: Raw body parser for webhook signature verification
+// Must be registered before express.json() to receive raw body
+app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }));
+
+// Regular JSON parser for other routes
 app.use(express.json());
 
 app.get('/health', (req, res) => {
@@ -31,6 +36,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/products', productRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Register Route (Temporary for setup)
 app.post('/api/auth/register', async (req, res) => {

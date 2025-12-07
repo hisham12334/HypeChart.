@@ -13,6 +13,7 @@ A white-label e-commerce order management platform designed for Instagram D2C br
 - [Development](#-development)
 - [Database](#-database)
 - [API Documentation](#-api-documentation)
+- [Documentation](#-documentation)
 - [Deployment](#-deployment)
 - [Contributing](#-contributing)
 
@@ -33,11 +34,12 @@ A white-label e-commerce order management platform designed for Instagram D2C br
 ### Checkout Experience
 - 🎨 White-label branded checkout pages
 - 🛒 Cart with automatic inventory reservation
-- 💳 Razorpay payment integration
+- 💳 Razorpay payment integration with idempotency
 - 📱 WhatsApp order notifications
-- 🔒 Secure payment verification
+- 🔒 Secure payment verification with signature validation
 - 📦 Real-time stock availability
 - 🎯 Product drop countdown timers
+- 🔄 Automatic retry handling for failed payments
 
 ### Backend API
 - ⚡ Express.js REST API
@@ -45,9 +47,12 @@ A white-label e-commerce order management platform designed for Instagram D2C br
 - 🔐 JWT authentication & authorization
 - 📊 PostgreSQL with Prisma ORM
 - 🎫 Automatic inventory reservation system
-- 💸 Razorpay webhook handling
+- 💸 Razorpay webhook handling with signature verification
+- 🔁 Idempotency middleware for payment operations
+- 📝 Comprehensive webhook event logging
 - 📱 WhatsApp notification service
 - 🔒 Encrypted payment credentials storage
+- 🛡️ CORS configuration for cross-origin requests
 
 ## 🛠️ Tech Stack
 
@@ -341,6 +346,92 @@ pnpm prisma studio
 docker exec -i brand_db psql -U branduser -d brandorder < backup.sql
 ```
 
+## 📚 Documentation
+
+Comprehensive guides for system features and operations:
+
+### Payment & Webhooks
+- **[Webhook Setup Guide](./docs/WEBHOOK_SETUP.md)** - Complete guide for Razorpay webhook configuration, testing, and troubleshooting
+- **[Webhook Quick Reference](./docs/WEBHOOK_QUICK_REFERENCE.md)** - Quick commands and troubleshooting checklist
+- **[Payment Security](./docs/PAYMENT_SECURITY.md)** - Idempotency, inventory locking, and security features
+
+### System Documentation
+- **[Idempotency Guide](./docs/IDEMPOTENCY.md)** - Preventing duplicate charges and race conditions
+- **[Idempotency Implementation](./IDEMPOTENCY_IMPLEMENTATION.md)** - Technical implementation details
+
+### Testing Scripts
+- **[Test Webhooks](./docs/test-webhook.sh)** - Automated webhook testing script
+- **[Test Idempotency](./docs/test-idempotency.sh)** - Idempotency testing script
+
+## 🎯 Current Implementation Status
+
+### ✅ Completed Features
+
+#### Core System
+- [x] Monorepo setup with pnpm workspaces
+- [x] PostgreSQL database with Prisma ORM
+- [x] Redis caching layer
+- [x] Docker containerization
+- [x] TypeScript configuration across all packages
+
+#### Authentication & Security
+- [x] JWT-based authentication
+- [x] Password hashing with bcryptjs
+- [x] Secure credential encryption
+- [x] CORS configuration with idempotency header support
+- [x] Helmet.js security headers
+
+#### Product Management
+- [x] Product CRUD operations
+- [x] Product variants (size, color, etc.)
+- [x] Inventory tracking
+- [x] Product slugs for checkout URLs
+
+#### Payment Integration
+- [x] Razorpay order creation
+- [x] Payment processing flow
+- [x] Webhook signature verification
+- [x] Webhook event logging and deduplication
+- [x] Idempotency middleware for payment operations
+- [x] Client-side idempotency key generation
+- [x] Automatic retry handling with preserved idempotency keys
+
+#### Order Management
+- [x] Order creation and tracking
+- [x] Order status updates via webhooks
+- [x] Inventory reservation system
+- [x] Order fulfillment workflow
+
+#### Frontend Applications
+- [x] Admin dashboard (Next.js)
+- [x] Checkout application (Next.js)
+- [x] Product listing pages
+- [x] Cart functionality
+- [x] Payment UI integration
+
+### 🚧 In Progress / Planned
+
+#### Admin Features
+- [ ] Image upload to AWS S3
+- [ ] Product drop scheduling
+- [ ] Customer relationship management (CRM)
+- [ ] Shipping tracking integration
+- [ ] Activity logs dashboard
+- [ ] Analytics and reporting
+
+#### Checkout Features
+- [ ] WhatsApp order notifications
+- [ ] Email notifications
+- [ ] Order confirmation pages
+- [ ] Order tracking for customers
+
+#### System Enhancements
+- [ ] Background job for expired reservation cleanup
+- [ ] Rate limiting
+- [ ] Advanced logging and monitoring
+- [ ] Performance optimization
+- [ ] Automated testing suite
+
 ## 📡 API Documentation
 
 ### Authentication
@@ -471,19 +562,24 @@ Before deploying to production:
 
 ### Payment Flow
 1. Customer adds items to cart (inventory reserved)
-2. Razorpay order created with reserved items
-3. Payment processed through Razorpay
-4. Webhook verifies payment
-5. Order confirmed, inventory deducted
-6. WhatsApp notification sent
+2. Client generates unique idempotency key
+3. Razorpay order created with reserved items (idempotent)
+4. Payment processed through Razorpay
+5. Webhook receives payment event with signature verification
+6. Webhook event logged and deduplicated
+7. Order status updated (paid/failed)
+8. Inventory deducted on successful payment
+9. WhatsApp notification sent (planned)
 
 ### Security Features
 - JWT-based authentication
 - Password hashing with bcryptjs
 - Encrypted Razorpay credentials
-- CORS protection
+- CORS protection with custom headers (idempotency-key)
 - Helmet.js security headers
-- Input validation with Zod
+- Webhook signature verification (HMAC SHA256)
+- Idempotency protection against duplicate charges
+- Input validation with Zod (planned)
 
 ## 🤝 Contributing
 
