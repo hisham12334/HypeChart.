@@ -19,9 +19,12 @@ app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cors({
-  origin: [process.env.ADMIN_URL || 'http://localhost:3000', process.env.CHECKOUT_URL || 'http://localhost:3001'],
-  credentials: true
+  origin: '*', // Allow all origins for development (Admin:3000, Checkout:3001)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.use(express.json());
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

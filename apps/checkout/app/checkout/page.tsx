@@ -1,24 +1,35 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { paymentClient } from '@/lib/payment-client';
 import { Loader2, ArrowLeft, ShieldCheck, Lock } from 'lucide-react';
 import Link from 'next/link';
 
-// Helper component to read params safely
+// Allow TypeScript to recognize Razorpay on the window object
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 function CheckoutContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Get params from URL
   const variantId = searchParams.get('variantId');
-  const slug = searchParams.get('slug');
-  const quantity = searchParams.get('qty') || '1';
-  const total = searchParams.get('total');
+  const slug = searchParams.get('slug'); // Ensure Cart passes this!
+  const quantity = parseInt(searchParams.get('qty') || '1');
+  const total = parseFloat(searchParams.get('total') || '0');
   
   const [product, setProduct] = useState<any>(null);
   const [variant, setVariant] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Payment processing state
+  const [dataLoading, setDataLoading] = useState(true); // Page load state
 
+  // --- 1. Fetch Product Details for UI ---
   useEffect(() => {
     const fetchProduct = async () => {
       if (!slug) {
@@ -46,11 +57,86 @@ function CheckoutContent() {
     fetchProduct();
   }, [slug, variantId]);
 
-  const handlePayment = (e: React.FormEvent) => {
+  // --- 2. Handle Real Payment (Razorpay) with Idempotency ---
+  const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Payment Logic will go here
-    setTimeout(() => { alert("Payment Triggered"); setLoading(false); }, 1000);
+
+    try {
+      // A. Create Order on Backend with Idempotency Protection
+      // The paymentClient automatically handles:
+      // - Generating unique idempotency keys
+      // - Retrying on 409 conflicts
+      // - Storing keys for retry scenarios
+      const result = await paymentClient.createOrder({
+        variantId: variantId!,
+        quantity,
+        amount: total
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create order');
+      }
+
+      const { orderId, amount, currency, keyId } = result;
+
+      // B. Open Razorpay Modal
+      const options = {
+        key: keyId,
+        amount: amount,
+        currency: currency,
+        name: "Hypechart Drop",
+        description: `Order for ${product?.name || 'Item'}`,
+        order_id: orderId,
+        handler: function (response: any) {
+          // C. Payment Success
+          console.log("Payment ID:", response.razorpay_payment_id);
+          
+          // Clear idempotency key after successful payment
+          paymentClient.confirmPaymentSuccess();
+          
+          alert(`Payment Successful! ID: ${response.razorpay_payment_id}`);
+          // TODO: Redirect to Success Page
+          // router.push('/success'); 
+        },
+        modal: {
+          ondismiss: function() {
+            // User closed the payment modal
+            // Keep idempotency key in case they want to retry
+            console.log('Payment modal closed');
+            setLoading(false);
+          }
+        },
+        prefill: {
+          name: "Customer Name", // Connect to form state if needed
+          contact: "9999999999"  // Connect to form state if needed
+        },
+        theme: {
+          color: "#000000"
+        }
+      };
+
+      const rzp1 = new window.Razorpay(options);
+      
+      rzp1.on('payment.failed', function (response: any) {
+        // Payment failed - keep idempotency key for retry
+        paymentClient.handlePaymentFailure();
+        console.error('Payment failed:', response.error);
+        alert(`Payment Failed: ${response.error.description}`);
+        setLoading(false);
+      });
+
+      rzp1.open();
+
+    } catch (error: any) {
+      console.error(error);
+      
+      // Keep idempotency key for retry
+      paymentClient.handlePaymentFailure();
+      
+      alert("Payment Initialization Failed: " + (error.message || "Unknown Error"));
+      setLoading(false);
+    }
   };
 
   if (dataLoading) {
@@ -93,27 +179,15 @@ function CheckoutContent() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Full Name</label>
-                    <input 
-                      required 
-                      type="text" 
-                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                    />
+                    <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Phone Number</label>
-                    <input 
-                      required 
-                      type="tel" 
-                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                    />
+                    <input required type="tel" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Email Address</label>
-                    <input 
-                      required 
-                      type="email" 
-                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                    />
+                    <input required type="email" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                   </div>
                 </div>
               </div>
@@ -124,37 +198,21 @@ function CheckoutContent() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Street Address</label>
-                    <input 
-                      required 
-                      type="text" 
-                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                    />
+                    <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-neutral-600 mb-2">City</label>
-                      <input 
-                        required 
-                        type="text" 
-                        className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                      />
+                      <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm text-neutral-600 mb-2">State</label>
-                      <input 
-                        required 
-                        type="text" 
-                        className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                      />
+                      <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Postal Code</label>
-                    <input 
-                      required 
-                      type="text" 
-                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
-                    />
+                    <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
                   </div>
                 </div>
               </div>
@@ -171,11 +229,7 @@ function CheckoutContent() {
                 <div className="flex gap-4 pb-6 border-b border-neutral-200">
                   <div className="w-20 h-20 bg-neutral-100 flex-shrink-0 overflow-hidden">
                     {product?.images?.[0] ? (
-                      <img 
-                        src={product.images[0]} 
-                        alt={product.name} 
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}

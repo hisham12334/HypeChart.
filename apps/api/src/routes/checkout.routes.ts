@@ -5,6 +5,7 @@ const router = Router();
 const controller = new CheckoutController();
 
 router.get('/products/:slug', controller.getProduct);
-router.post('/reserve', controller.reserve);
+// Changed from 'reserve' to 'create-order' to reflect full process
+router.post('/create-order', controller.createOrder);
 
 export default router;
