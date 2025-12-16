@@ -8,6 +8,8 @@ import { PrismaClient } from '@brand-order-system/database';
 import productRoutes from './routes/product.routes';
 import checkoutRoutes from './routes/checkout.routes';
 import webhookRoutes from './routes/webhook.routes';
+import { OrderController } from './controllers/order.controller';
+import orderRoutes from './routes/order.routes';
 
 config();
 
@@ -15,6 +17,8 @@ const app = express();
 const port = process.env.PORT || 4000;
 const prisma = new PrismaClient();
 const authService = new AuthService();
+const orderController = new OrderController();
+
 
 app.use(helmet());
 app.use(morgan('dev'));
@@ -37,17 +41,18 @@ app.get('/health', (req, res) => {
 
 app.use('/api/products', productRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Register Route (Temporary for setup)
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, brandName } = req.body;
     const passwordHash = await authService.hashPassword(password);
-    
+
     const user = await prisma.user.create({
       data: { email, passwordHash, brandName }
     });
-    
+
     res.json({ success: true, user: { id: user.id, email: user.email } });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error.message });

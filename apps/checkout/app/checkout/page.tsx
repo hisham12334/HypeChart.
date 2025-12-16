@@ -17,19 +17,30 @@ declare global {
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   // Get params from URL
   const variantId = searchParams.get('variantId');
   const slug = searchParams.get('slug'); // Ensure Cart passes this!
   const quantity = parseInt(searchParams.get('qty') || '1');
   const total = parseFloat(searchParams.get('total') || '0');
-  
+
   const [product, setProduct] = useState<any>(null);
   const [variant, setVariant] = useState<any>(null);
   const [loading, setLoading] = useState(false); // Payment processing state
   const [dataLoading, setDataLoading] = useState(true); // Page load state
 
-  // --- 1. Fetch Product Details for UI ---
+  // --- 1. NEW: Form State to capture user inputs ---
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: ''
+  });
+
+  // --- 2. Fetch Product Details for UI ---
   useEffect(() => {
     const fetchProduct = async () => {
       if (!slug) {
@@ -41,7 +52,7 @@ function CheckoutContent() {
         if (res.data.success) {
           const productData = res.data.data;
           setProduct(productData);
-          
+
           if (variantId) {
             const selectedVariant = productData.variants.find((v: any) => v.id === variantId);
             setVariant(selectedVariant);
@@ -53,21 +64,17 @@ function CheckoutContent() {
         setDataLoading(false);
       }
     };
-    
+
     fetchProduct();
   }, [slug, variantId]);
 
-  // --- 2. Handle Real Payment (Razorpay) with Idempotency ---
+  // --- 3. Handle Real Payment (Razorpay) with Verification ---
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       // A. Create Order on Backend with Idempotency Protection
-      // The paymentClient automatically handles:
-      // - Generating unique idempotency keys
-      // - Retrying on 409 conflicts
-      // - Storing keys for retry scenarios
       const result = await paymentClient.createOrder({
         variantId: variantId!,
         quantity,
@@ -88,28 +95,54 @@ function CheckoutContent() {
         name: "Hypechart Drop",
         description: `Order for ${product?.name || 'Item'}`,
         order_id: orderId,
-        handler: function (response: any) {
-          // C. Payment Success
-          console.log("Payment ID:", response.razorpay_payment_id);
-          
-          // Clear idempotency key after successful payment
-          paymentClient.confirmPaymentSuccess();
-          
-          alert(`Payment Successful! ID: ${response.razorpay_payment_id}`);
-          // TODO: Redirect to Success Page
-          // router.push('/success'); 
+
+        // --- NEW: Verify Payment on Backend after Success ---
+        handler: async function (response: any) {
+          try {
+            console.log("Razorpay Success:", response);
+
+            // C. Call Backend to Verify & Save Order
+            const verifyRes = await apiClient.post('/checkout/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              customerDetails: {
+                name: formData.name,
+                phone: formData.phone,
+                email: formData.email,
+                address: formData.address,
+                city: formData.city,
+                state: formData.state,
+                pincode: formData.pincode,
+                amount: total
+              },
+              orderItems: [{ variantId, quantity }]
+            });
+
+            // D. If Verified, Redirect to Success
+            if (verifyRes.data.success) {
+              paymentClient.confirmPaymentSuccess();
+              router.push(`/success?orderId=${verifyRes.data.orderId}`);
+            } else {
+              alert("Payment verification failed! Please contact support.");
+              setLoading(false);
+            }
+          } catch (err) {
+            console.error(err);
+            alert("Failed to save order. Please contact support.");
+            setLoading(false);
+          }
         },
         modal: {
-          ondismiss: function() {
-            // User closed the payment modal
-            // Keep idempotency key in case they want to retry
+          ondismiss: function () {
             console.log('Payment modal closed');
             setLoading(false);
           }
         },
         prefill: {
-          name: "Customer Name", // Connect to form state if needed
-          contact: "9999999999"  // Connect to form state if needed
+          name: formData.name,
+          contact: formData.phone,
+          email: formData.email
         },
         theme: {
           color: "#000000"
@@ -117,9 +150,8 @@ function CheckoutContent() {
       };
 
       const rzp1 = new window.Razorpay(options);
-      
+
       rzp1.on('payment.failed', function (response: any) {
-        // Payment failed - keep idempotency key for retry
         paymentClient.handlePaymentFailure();
         console.error('Payment failed:', response.error);
         alert(`Payment Failed: ${response.error.description}`);
@@ -130,10 +162,7 @@ function CheckoutContent() {
 
     } catch (error: any) {
       console.error(error);
-      
-      // Keep idempotency key for retry
       paymentClient.handlePaymentFailure();
-      
       alert("Payment Initialization Failed: " + (error.message || "Unknown Error"));
       setLoading(false);
     }
@@ -152,8 +181,8 @@ function CheckoutContent() {
       <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-12">
-          <Link 
-            href=".." 
+          <Link
+            href=".."
             className="text-sm text-neutral-600 hover:text-neutral-900 mb-6 inline-flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -172,22 +201,40 @@ function CheckoutContent() {
           {/* Form Section */}
           <div className="lg:col-span-2">
             <form id="checkout-form" onSubmit={handlePayment} className="space-y-8">
-              
+
               {/* Contact Information */}
               <div className="bg-white border border-neutral-200 p-6">
                 <h2 className="text-lg font-medium text-neutral-900 mb-6">Contact Information</h2>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Full Name</label>
-                    <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                    <input
+                      required
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Phone Number</label>
-                    <input required type="tel" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                    <input
+                      required
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Email Address</label>
-                    <input required type="email" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                    <input
+                      required
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                    />
                   </div>
                 </div>
               </div>
@@ -198,21 +245,45 @@ function CheckoutContent() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Street Address</label>
-                    <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                    <input
+                      required
+                      type="text"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-neutral-600 mb-2">City</label>
-                      <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                      <input
+                        required
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm text-neutral-600 mb-2">State</label>
-                      <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                      <input
+                        required
+                        type="text"
+                        value={formData.state}
+                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                      />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm text-neutral-600 mb-2">Postal Code</label>
-                    <input required type="text" className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm" />
+                    <input
+                      required
+                      type="text"
+                      value={formData.pincode}
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-neutral-300 focus:border-neutral-900 outline-none transition-colors text-sm"
+                    />
                   </div>
                 </div>
               </div>
@@ -224,7 +295,7 @@ function CheckoutContent() {
           <div className="lg:col-span-1">
             <div className="bg-white border border-neutral-200 p-6 sticky top-6">
               <h2 className="text-lg font-medium text-neutral-900 mb-6">Order Summary</h2>
-              
+
               <div className="mb-6">
                 <div className="flex gap-4 pb-6 border-b border-neutral-200">
                   <div className="w-20 h-20 bg-neutral-100 flex-shrink-0 overflow-hidden">
@@ -261,7 +332,7 @@ function CheckoutContent() {
                 </div>
               </div>
 
-              <button 
+              <button
                 form="checkout-form"
                 disabled={loading}
                 className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"

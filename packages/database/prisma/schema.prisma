@@ -265,3 +265,30 @@ model WebhookEvent {
   @@index([processedAt])
   @@map("webhook_events")
 }
+
+
+// ===================================
+// ORDER EVENTS
+// ===================================
+
+model Order {
+  id              String   @id @default(uuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Razorpay Details
+  razorpayOrderId   String   @unique
+  razorpayPaymentId String?
+  
+  // Customer Details
+  customerName    String
+  customerPhone   String
+  address         String
+  city            String
+  pincode         String
+  
+  // Order Details
+  totalAmount     Float
+  status          String   @default("pending") // pending, paid, shipped
+  items           Json 
+}
