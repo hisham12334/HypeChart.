@@ -6,17 +6,20 @@ import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge'; // We might need to install this or use standard HTML
-import { Loader2, Package, Truck, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Package, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { OrderDetailsDialog } from '@/components/orders/order-details-dialog';
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
     const fetchOrders = async () => {
         try {
-            // We need to create this endpoint in the API next!
             const response = await apiClient.get('/orders');
             setOrders(response.data.data);
         } catch (error) {
@@ -31,11 +34,15 @@ export default function OrdersPage() {
         fetchOrders();
     }, []);
 
+    const handleViewOrder = (order: any) => {
+        setSelectedOrder(order);
+        setIsModalOpen(true);
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'paid': return 'bg-green-100 text-green-800 border-green-200';
             case 'shipped': return 'bg-blue-100 text-blue-800 border-blue-200';
-            case 'delivered': return 'bg-gray-100 text-gray-800 border-gray-200';
             case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
             default: return 'bg-gray-100 text-gray-800';
         }
@@ -68,15 +75,15 @@ export default function OrdersPage() {
                                     <TableHead>Order ID</TableHead>
                                     <TableHead>Customer</TableHead>
                                     <TableHead>Status</TableHead>
-                                    <TableHead>Items</TableHead>
                                     <TableHead>Total</TableHead>
                                     <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {orders.map((order) => (
                                     <TableRow key={order.id}>
-                                        <TableCell className="font-mono text-xs">{order.orderNumber || order.id.slice(0, 8)}</TableCell>
+                                        <TableCell className="font-mono text-xs">{order.orderNumber}</TableCell>
                                         <TableCell>
                                             <div className="font-medium">{order.customerName}</div>
                                             <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
@@ -86,13 +93,21 @@ export default function OrdersPage() {
                                                 {order.status}
                                             </span>
                                         </TableCell>
-                                        <TableCell>
-                                            {/* Simplified item display */}
-                                            <span className="text-sm">{order.items?.length || 1} items</span>
-                                        </TableCell>
                                         <TableCell>₹{order.totalAmount || order.total}</TableCell>
                                         <TableCell className="text-muted-foreground text-sm">
                                             {new Date(order.createdAt).toLocaleDateString()}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {/* CHANGED: View button is now an Outline button (Visible) */}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleViewOrder(order)}
+                                                className="border-neutral-300 text-neutral-900 hover:bg-neutral-100"
+                                            >
+                                                <Eye className="w-4 h-4 mr-2" />
+                                                View
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -101,6 +116,12 @@ export default function OrdersPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <OrderDetailsDialog
+                order={selectedOrder}
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+            />
         </div>
     );
 }
