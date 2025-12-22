@@ -4,14 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Package, Image as ImageIcon, Link as LinkIcon, Copy, Check } from 'lucide-react';
+import { Plus, Loader2, Package, Image as ImageIcon, Link as LinkIcon, Check, Trash2 } from 'lucide-react';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -38,15 +33,26 @@ export default function ProductsPage() {
     }
   };
 
+  // --- NEW: Delete Function ---
+  const deleteProduct = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this product? This cannot be undone.")) return;
+
+    try {
+      await apiClient.delete(`/products/${id}`);
+      toast.success("Product deleted");
+      // Refresh list
+      fetchProducts();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete product");
+    }
+  };
+
   const copyLink = (slug: string, id: string) => {
     const url = `${CHECKOUT_URL}/p/${slug}`;
     navigator.clipboard.writeText(url);
-    
-    // Show success feedback
     setCopiedId(id);
-    toast.success("Checkout link copied to clipboard!");
-    
-    // Reset icon after 2 seconds
+    toast.success("Link copied!");
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -85,6 +91,7 @@ export default function ProductsPage() {
                   <TableHead>Link</TableHead>
                   <TableHead>Variants</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -101,15 +108,12 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell className="font-medium">
                       {product.name}
-                      <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {product.description || "No description"}
-                      </div>
                     </TableCell>
                     <TableCell>₹{product.basePrice}</TableCell>
                     <TableCell>
                       <Button variant="outline" size="sm" className="h-8 gap-2" onClick={() => copyLink(product.checkoutSlug, product.id)}>
                         {copiedId === product.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <LinkIcon className="h-3.5 w-3.5 text-gray-500" />}
-                        {copiedId === product.id ? "Copied" : "Copy Link"}
+                        {copiedId === product.id ? "Copied" : "Copy"}
                       </Button>
                     </TableCell>
                     <TableCell>
@@ -118,10 +122,21 @@ export default function ProductsPage() {
                     <TableCell>
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">Active</span>
                     </TableCell>
+                    <TableCell className="text-right">
+                      {/* DELETE BUTTON */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => deleteProduct(product.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
-          </Table>
+            </Table>
           )}
         </CardContent>
       </Card>

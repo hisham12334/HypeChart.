@@ -3,7 +3,7 @@ import { PrismaClient } from '@brand-order-system/database';
 const prisma = new PrismaClient();
 
 export class ProductService {
-  
+
   // Helper: Create URL-friendly slug (e.g., "Cool T-Shirt" -> "cool-t-shirt")
   private generateSlug(name: string): string {
     return name
@@ -55,5 +55,23 @@ export class ProductService {
       where: { checkoutSlug: slug },
       include: { variants: true }
     });
+  }
+
+
+  // Add this method to the class
+  async deleteProduct(userId: string, productId: string) {
+    // We use deleteMany so we can check for userId (ownership) safely
+    const result = await prisma.product.deleteMany({
+      where: {
+        id: productId,
+        userId: userId
+      }
+    });
+
+    if (result.count === 0) {
+      throw new Error("Product not found or unauthorized");
+    }
+
+    return true;
   }
 }

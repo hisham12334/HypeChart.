@@ -19,15 +19,15 @@ const createProductSchema = z.object({
 });
 
 export class ProductController {
-  
+
   // POST /api/products
   async create(req: Request, res: Response) {
     try {
       console.log('Received product creation request:', JSON.stringify(req.body, null, 2));
-      
+
       // 1. Validate Input
       const validatedData = createProductSchema.parse(req.body);
-      
+
       // 2. Get User ID from Auth Middleware (we will fix the type later)
       const userId = (req as any).user?.userId;
       console.log('User ID from token:', userId);
@@ -38,29 +38,29 @@ export class ProductController {
 
       // 3. Call Service
       const product = await productService.createProduct(userId, validatedData);
-      
+
       res.status(201).json({ success: true, data: product });
     } catch (error: any) {
       console.error('Product creation error:', error);
-      
+
       // Better error handling for Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          success: false, 
+        return res.status(400).json({
+          success: false,
           error: 'Validation failed',
-          details: error.errors 
+          details: error.errors
         });
       }
-      
+
       // Handle Prisma foreign key constraint errors
       if (error.code === 'P2003') {
-        return res.status(400).json({ 
-          success: false, 
+        return res.status(400).json({
+          success: false,
           error: 'User not found. Please log in again.',
           details: 'The user associated with this token does not exist in the database.'
         });
       }
-      
+
       res.status(400).json({ success: false, error: error.message || 'Failed to create product' });
     }
   }
@@ -75,6 +75,22 @@ export class ProductController {
       res.json({ success: true, data: products });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  // DELETE /api/products/:id
+  async delete(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.userId;
+      const { id } = req.params;
+
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      await productService.deleteProduct(userId, id);
+
+      res.json({ success: true, message: "Product deleted successfully" });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
     }
   }
 }
