@@ -57,6 +57,65 @@ export class ProductService {
     });
   }
 
+  // 4. Get Single Product by ID (for Admin Edit)
+  async getProductById(id: string) {
+    return prisma.product.findUnique({
+      where: { id },
+      include: { variants: true }
+    });
+  }
+
+  // Add this inside ProductService class
+  async updateProduct(userId: string, productId: string, data: any) {
+    // 1. Check ownership
+    const existing = await prisma.product.findFirst({
+      where: { id: productId, userId }
+    });
+
+    if (!existing) throw new Error("Product not found or unauthorized");
+
+    // 2. Update Basic Info
+    const updatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: {
+        name: data.name,
+        description: data.description,
+        basePrice: parseFloat(data.basePrice),
+        images: data.images, // Array of strings
+      }
+    });
+
+    // 3. Update Variants (Inventory & Names)
+    // We loop through the variants sent from frontend
+    if (data.variants && data.variants.length > 0) {
+      for (const variant of data.variants) {
+        if (variant.id) {
+          // Update existing variant
+          await prisma.variant.update({
+            where: { id: variant.id },
+            data: {
+              name: variant.name,
+              inventoryCount: parseInt(variant.inventoryCount),
+              reservedCount: 0 // Reset reserved if needed, or keep logic simple
+            }
+          });
+        } else {
+          // Create new variant if it was added during edit
+          await prisma.variant.create({
+            data: {
+              productId: productId,
+              name: variant.name,
+              inventoryCount: parseInt(variant.inventoryCount),
+              reservedCount: 0
+            }
+          });
+        }
+      }
+    }
+
+    return updatedProduct;
+  }
+
 
   // Add this method to the class
   async deleteProduct(userId: string, productId: string) {

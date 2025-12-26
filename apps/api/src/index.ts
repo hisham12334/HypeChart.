@@ -10,6 +10,7 @@ import checkoutRoutes from './routes/checkout.routes';
 import webhookRoutes from './routes/webhook.routes';
 import { OrderController } from './controllers/order.controller';
 import orderRoutes from './routes/order.routes';
+import analyticsRoutes from './routes/analytics.routes';
 
 config();
 
@@ -71,6 +72,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.listen(port, () => {
   console.log(`🚀 API Server running at http://localhost:${port}`);

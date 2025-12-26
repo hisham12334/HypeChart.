@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Package, Image as ImageIcon, Link as LinkIcon, Check, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Package, Image as ImageIcon, Link as LinkIcon, Check, Trash2, Edit } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -33,14 +33,12 @@ export default function ProductsPage() {
     }
   };
 
-  // --- NEW: Delete Function ---
   const deleteProduct = async (id: string) => {
     if (!confirm("Are you sure you want to delete this product? This cannot be undone.")) return;
 
     try {
       await apiClient.delete(`/products/${id}`);
       toast.success("Product deleted");
-      // Refresh list
       fetchProducts();
     } catch (error) {
       console.error(error);
@@ -122,17 +120,31 @@ export default function ProductsPage() {
                     <TableCell>
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">Active</span>
                     </TableCell>
+
+                    {/* --- ACTIONS COLUMN --- */}
                     <TableCell className="text-right">
-                      {/* DELETE BUTTON */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => deleteProduct(product.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end items-center gap-2">
+
+                        {/* 1. EDIT: Using Direct Link (No Button Component) */}
+                        <Link
+                          href={`/products/${product.id}`}
+                          className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-blue-50 text-blue-500 transition-colors"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Link>
+
+                        {/* 2. DELETE: Using Button Component */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => deleteProduct(product.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
+
                   </TableRow>
                 ))}
               </TableBody>

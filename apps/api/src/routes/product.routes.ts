@@ -27,6 +27,9 @@ const requireAuth = async (req: any, res: any, next: any) => {
 
 router.post('/', requireAuth, productController.create);
 router.get('/', requireAuth, productController.list);
+router.get('/:id', requireAuth, productController.getOne);
 router.delete('/:id', requireAuth, productController.delete);
+router.put('/:id', requireAuth, productController.update);
+
 
 export default router;

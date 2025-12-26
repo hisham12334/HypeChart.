@@ -78,6 +78,35 @@ export class ProductController {
     }
   }
 
+  // PUT /api/products/:id
+  async update(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?.userId;
+      const { id } = req.params;
+
+      const updated = await productService.updateProduct(userId, id, req.body);
+
+      res.json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error("Update error:", error);
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  // GET /api/products/:id
+  async getOne(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const product = await productService.getProductById(id);
+
+      if (!product) return res.status(404).json({ success: false, error: "Product not found" });
+
+      res.json({ success: true, data: product });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
   // DELETE /api/products/:id
   async delete(req: Request, res: Response) {
     try {
