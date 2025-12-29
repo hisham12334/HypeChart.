@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react'; // <--- Import useEffect
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
@@ -9,78 +9,111 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, Trash2, Plus, Image as ImageIcon, X, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2, Plus, X, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function NewProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  
-  // --- CLOUDINARY CONFIG ---
-  // TODO: Replace these with your actual Cloudinary details
-  const CLOUD_NAME = "dsqetae27"; 
-  const UPLOAD_PRESET = "hypechart-products"; 
 
   // --- STATE ---
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // <--- Store Real ID here
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  
+
   // Form State
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState('');
   const [images, setImages] = useState<string[]>([]);
 
-  // Variant State
   const [variants, setVariants] = useState([
     { name: 'Size S', inventoryCount: 0 },
     { name: 'Size M', inventoryCount: 0 },
     { name: 'Size L', inventoryCount: 0 },
   ]);
 
+  // --- 1. FETCH REAL USER ID ON LOAD ---
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        // We call a lightweight endpoint to get our own details
+        // If you don't have /auth/me, we can use any protected route that returns user info
+        // Or simply decode the token if you store it.
+        // Assuming your backend attaches 'user' to requests, we can check a profile endpoint:
+        const res = await apiClient.get('/auth/me');
+
+        if (res.data.success) {
+          setCurrentUserId(res.data.data.id); // Save the REAL ID
+          console.log("Logged in as User:", res.data.data.id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user info", error);
+        // Fallback: Try to get from localStorage if API fails
+        const storedId = localStorage.getItem('userId');
+        if (storedId) setCurrentUserId(storedId);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // --- CLOUDINARY CONFIG ---
+  const CLOUD_NAME = "dsqetae27";
+  const UPLOAD_PRESET = "hypechart-products";
+
   // --- HANDLERS ---
 
-  // 1. Image Upload Handler (Cloudinary)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Safety Check: Don't allow upload if we don't know who the user is yet
+    if (!currentUserId) {
+      toast.error("User ID not found. Please refresh the page.");
+      return;
+    }
+
     setIsUploading(true);
     const file = files[0];
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', UPLOAD_PRESET);
+
+    // --- DYNAMIC FOLDER ---
+    // Now this is guaranteed to be the correct user
+    formData.append('folder', `hypechart_stores/${currentUserId}`);
 
     try {
       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
         method: 'POST',
         body: formData,
       });
-      
+
       const data = await res.json();
-      
+
       if (data.secure_url) {
         setImages([...images, data.secure_url]);
-        toast.success('Image uploaded successfully');
+        toast.success('Image uploaded');
       } else {
-        throw new Error('Upload failed');
+        throw new Error(data.error?.message || 'Upload failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Cloudinary Error:", error);
-      toast.error('Failed to upload image');
+      toast.error(`Upload Failed: ${error.message}`);
     } finally {
       setIsUploading(false);
-      // Reset input so you can upload the same file again if needed
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  // ... (Rest of your component: removeImage, handleSubmit, JSX) ...
+  // (Keep the rest of the code exactly the same as before)
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
 
-  // 2. Variant Handlers
   const updateVariant = (index: number, field: string, value: any) => {
     const newVariants = [...variants];
     // @ts-ignore
@@ -96,40 +129,31 @@ export default function NewProductPage() {
     setVariants(variants.filter((_, i) => i !== index));
   };
 
-  // 3. Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const safePrice = parseFloat(basePrice) || 0;
+
       const payload = {
         name,
         description,
-        basePrice: parseFloat(basePrice),
-        images, // Send the uploaded image URLs
+        basePrice: safePrice,
+        images,
         variants: variants.map(v => ({
-          ...v,
-          inventoryCount: parseInt(v.inventoryCount.toString())
+          name: v.name,
+          inventoryCount: parseInt(v.inventoryCount.toString()) || 0
         }))
       };
 
-      console.log('Submitting product:', payload);
-
       await apiClient.post('/products', payload);
-
       toast.success('Product created successfully');
       router.push('/products');
     } catch (error: any) {
       console.error('Product creation error:', error);
-      
-      // Show detailed error message
-      const errorMessage = error.response?.data?.error || error.response?.data?.details?.[0]?.message || 'Failed to create product';
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to create product';
       toast.error(errorMessage);
-      
-      // Log full error details for debugging
-      if (error.response?.data?.details) {
-        console.error('Validation errors:', error.response.data.details);
-      }
     } finally {
       setLoading(false);
     }
@@ -155,8 +179,8 @@ export default function NewProductPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Product Name</Label>
-              <Input 
-                placeholder="e.g. Vintage Heavyweight Tee" 
+              <Input
+                placeholder="e.g. Vintage Heavyweight Tee"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -164,17 +188,17 @@ export default function NewProductPage() {
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea 
-                placeholder="Product description..." 
+              <Textarea
+                placeholder="Product description..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label>Base Price (₹)</Label>
-              <Input 
-                type="number" 
-                placeholder="1499" 
+              <Input
+                type="number"
+                placeholder="1499"
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
                 required
@@ -190,8 +214,8 @@ export default function NewProductPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Hidden File Input */}
-            <input 
-              type="file" 
+            <input
+              type="file"
               ref={fileInputRef}
               className="hidden"
               accept="image/*"
@@ -200,11 +224,11 @@ export default function NewProductPage() {
 
             {/* Upload Button */}
             <div className="flex gap-2">
-              <Button 
-                type="button" 
-                onClick={() => fileInputRef.current?.click()} 
+              <Button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
                 variant="secondary"
-                disabled={isUploading}
+                disabled={isUploading || !currentUserId} // Disable if user ID not loaded yet
                 className="w-full h-24 border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 flex flex-col gap-2"
               >
                 {isUploading ? (
@@ -215,7 +239,9 @@ export default function NewProductPage() {
                 ) : (
                   <>
                     <UploadCloud className="h-6 w-6 text-gray-400" />
-                    <span className="text-xs text-gray-500">Click to Upload Image</span>
+                    <span className="text-xs text-gray-500">
+                      {currentUserId ? "Click to Upload Image" : "Loading User..."}
+                    </span>
                   </>
                 )}
               </Button>
@@ -225,9 +251,9 @@ export default function NewProductPage() {
             <div className="grid grid-cols-4 gap-4 mt-4">
               {images.map((url, index) => (
                 <div key={index} className="relative group border rounded-lg overflow-hidden aspect-square">
-                  <img 
-                    src={url} 
-                    alt={`Product ${index + 1}`} 
+                  <img
+                    src={url}
+                    alt={`Product ${index + 1}`}
                     className="object-cover w-full h-full"
                   />
                   <button
@@ -256,24 +282,24 @@ export default function NewProductPage() {
               <div key={index} className="flex gap-4 items-end">
                 <div className="flex-1 space-y-2">
                   <Label>Variant Name</Label>
-                  <Input 
-                    value={variant.name} 
+                  <Input
+                    value={variant.name}
                     onChange={(e) => updateVariant(index, 'name', e.target.value)}
                     placeholder="e.g. Size XL"
                   />
                 </div>
                 <div className="w-32 space-y-2">
                   <Label>Stock</Label>
-                  <Input 
+                  <Input
                     type="number"
                     value={variant.inventoryCount}
                     onChange={(e) => updateVariant(index, 'inventoryCount', e.target.value)}
                   />
                 </div>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
                   className="text-red-500"
                   onClick={() => removeVariant(index)}
                 >

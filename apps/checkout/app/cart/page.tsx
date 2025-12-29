@@ -28,7 +28,7 @@ function CartContent() {
         if (res.data.success) {
           const productData = res.data.data;
           setProduct(productData);
-          
+
           // Find the selected variant
           if (variantId) {
             const selectedVariant = productData.variants.find((v: any) => v.id === variantId);
@@ -41,12 +41,12 @@ function CartContent() {
         setLoading(false);
       }
     };
-    
+
     fetchProduct();
   }, [slug, variantId]);
 
   // Calculations
-  const mockPrice = product?.basePrice || 1499; 
+  const mockPrice = product?.basePrice || 1499;
   const subtotal = mockPrice * quantity;
   const shipping = subtotal < 1000 ? 99 : 0;
   const total = subtotal + shipping;
@@ -77,12 +77,18 @@ function CartContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="min-h-screen bg-neutral-50 flex flex-col">
+      <div className="max-w-4xl mx-auto px-6 py-12 w-full">
+
+        {/* --- BRAND HEADER --- */}
+        <header className="mb-12">
+          <h1 className="text-2xl font-black tracking-tighter uppercase">{product?.user?.brandName || "HYPECHART"}</h1>
+        </header>
+
         {/* Header */}
         <div className="mb-12">
-          <button 
-            onClick={() => router.back()} 
+          <button
+            onClick={() => router.back()}
             className="text-sm text-neutral-600 hover:text-neutral-900 mb-6 inline-flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -98,16 +104,16 @@ function CartContent() {
               <div className="flex gap-6">
                 <div className="w-28 h-28 bg-neutral-100 flex-shrink-0 overflow-hidden">
                   {product.images?.[0] ? (
-                    <img 
-                      src={product.images[0]} 
-                      alt={product.name} 
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full bg-neutral-200" />
                   )}
                 </div>
-                
+
                 <div className="flex-1">
                   <div className="flex justify-between mb-2">
                     <div>
@@ -120,19 +126,19 @@ function CartContent() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  
+
                   <div className="flex justify-between items-end mt-6">
                     <div className="text-lg text-neutral-900">₹{product.basePrice}</div>
-                    
+
                     <div className="flex items-center gap-4 border border-neutral-300">
-                      <button 
+                      <button
                         onClick={() => setQuantity(Math.max(1, quantity - 1))}
                         className="px-3 py-2 hover:bg-neutral-50 transition-colors"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
                       <span className="text-sm font-medium">{quantity}</span>
-                      <button 
+                      <button
                         onClick={() => setQuantity(quantity + 1)}
                         className="px-3 py-2 hover:bg-neutral-50 transition-colors"
                       >
@@ -149,13 +155,13 @@ function CartContent() {
           <div className="lg:col-span-1">
             <div className="bg-white border border-neutral-200 p-6 sticky top-6">
               <h2 className="text-xl font-serif text-neutral-900 mb-6">Summary</h2>
-              
+
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-neutral-600">Subtotal</span>
                   <span className="text-neutral-900">₹{subtotal}</span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-neutral-600">Shipping</span>
                   {shipping === 0 ? (
@@ -165,7 +171,7 @@ function CartContent() {
                   )}
                 </div>
               </div>
-              
+
               <div className="border-t border-neutral-200 pt-4 mb-6">
                 <div className="flex justify-between">
                   <span className="text-lg font-medium text-neutral-900">Total</span>
@@ -173,7 +179,7 @@ function CartContent() {
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={handleCheckout}
                 className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
               >
@@ -184,6 +190,22 @@ function CartContent() {
           </div>
         </div>
       </div>
+
+      <footer className="py-12 mt-auto border-t border-neutral-200 bg-neutral-100">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col items-center justify-center gap-3">
+          <p className="text-xs text-neutral-400">
+            &copy; {new Date().getFullYear()} {product?.user?.brandName || "Hypechart Brand"}. All rights reserved.
+          </p>
+          <a
+            href="https://hypechart.co"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-neutral-300 hover:text-neutral-900 transition-colors"
+          >
+            Powered by <span className="font-bold">Hypechart</span>
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }

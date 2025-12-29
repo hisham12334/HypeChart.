@@ -3,6 +3,7 @@ import cors = require('cors');
 import helmet from 'helmet';
 import morgan = require('morgan');
 import { config } from 'dotenv';
+import path from 'path';
 import { AuthService } from './services/auth.service';
 import { PrismaClient } from '@brand-order-system/database';
 import productRoutes from './routes/product.routes';
@@ -11,14 +12,16 @@ import webhookRoutes from './routes/webhook.routes';
 import { OrderController } from './controllers/order.controller';
 import orderRoutes from './routes/order.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import authRoutes from './routes/auth.routes';
 
-config();
+config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const port = process.env.PORT || 4000;
 const prisma = new PrismaClient();
 const authService = new AuthService();
 const orderController = new OrderController();
+
 
 
 app.use(helmet());
@@ -28,6 +31,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'idempotency-key']
 }));
+
+
 
 // IMPORTANT: Raw body parser for webhook signature verification
 // Must be registered before express.json() to receive raw body
@@ -43,6 +48,7 @@ app.get('/health', (req, res) => {
 app.use('/api/products', productRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/auth', authRoutes);
 
 // Register Route (Temporary for setup)
 app.post('/api/auth/register', async (req, res) => {

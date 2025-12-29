@@ -1,4 +1,5 @@
 import { PrismaClient } from '@brand-order-system/database';
+import { deleteImageFromCloudinary } from '../lib/cloudinary';
 
 const prisma = new PrismaClient();
 
@@ -53,7 +54,7 @@ export class ProductService {
   async getProductBySlug(slug: string) {
     return prisma.product.findUnique({
       where: { checkoutSlug: slug },
-      include: { variants: true }
+      include: { variants: true, user: { select: { brandName: true } } }
     });
   }
 
@@ -119,17 +120,26 @@ export class ProductService {
 
   // Add this method to the class
   async deleteProduct(userId: string, productId: string) {
-    // We use deleteMany so we can check for userId (ownership) safely
-    const result = await prisma.product.deleteMany({
-      where: {
-        id: productId,
-        userId: userId
-      }
+    // 1. Find the product first to get the image URLs
+    const product = await prisma.product.findFirst({
+      where: { id: productId, userId }
     });
 
-    if (result.count === 0) {
-      throw new Error("Product not found or unauthorized");
+    if (!product) throw new Error("Product not found or unauthorized");
+
+    // 2. Delete Images from Cloudinary (Clean up resources)
+    const images = product.images as unknown as string[];
+    if (Array.isArray(images) && images.length > 0) {
+      // We use Promise.all to delete them in parallel (faster)
+      await Promise.all(
+        images.map(url => deleteImageFromCloudinary(url))
+      );
     }
+
+    // 3. Delete from Database (The existing logic)
+    await prisma.product.delete({
+      where: { id: productId }
+    });
 
     return true;
   }

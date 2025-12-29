@@ -2,87 +2,108 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api-client';
+import Link from 'next/link';
+import { apiClient } from '@/lib/api-client'; // Ensure correct import path
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from "sonner"; // Using new Toaster
-import { Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const response = await apiClient.post('/auth/login', {
-        email,
-        password,
-      });
+      // 1. Send Login Request
+      const res = await apiClient.post('/auth/login', formData);
 
-      // Save token and user info
-      localStorage.setItem('token', response.data.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      // 2. DEBUG: Log the response to see exactly what we got
+      console.log("Login Response:", res.data);
 
-      toast.success("Logged in successfully"); // Success toast
+      if (res.data.success) {
+        // 3. SAFE EXTRACTION
+        // The structure is: { success: true, token: "...", user: { id: "..." } }
+        const token = res.data.token;
+        const userId = res.data.user.id; // We need this for Cloudinary
 
-      // Redirect to dashboard
-      router.push('/dashboard');
-      
+        if (!token || !userId) {
+          throw new Error("Login succeeded but token or user ID is missing.");
+        }
+
+        // 4. Save to Storage
+        localStorage.setItem('token', token);
+        localStorage.setItem('userId', userId);
+
+        toast.success("Welcome back!");
+
+        // 5. Force Refresh / Redirect
+        // We use window.location to ensure the API Client picks up the new token immediately
+        window.location.href = '/products';
+      }
     } catch (error: any) {
-      console.error(error);
-      toast.error(error.response?.data?.error || "Invalid credentials"); // Error toast
+      console.error("Login Failed:", error);
+
+      const msg = error.response?.data?.error || "Invalid credentials";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Admin Login</CardTitle>
-          <CardDescription className="text-center">
-            Enter your credentials to access the dashboard
-          </CardDescription>
+          <CardTitle className="text-2xl font-bold">Login</CardTitle>
+          <CardDescription>Enter your email below to login to your account</CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
+        <CardContent>
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="admin@brand.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required 
+              <Label>Email</Label>
+              <Input
+                type="email"
+                placeholder="m@example.com"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required 
+              <div className="flex items-center justify-between">
+                <Label>Password</Label>
+                {/* Optional: Add Forgot Password link later */}
+              </div>
+              <Input
+                type="password"
+                required
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? 'Signing in...' : 'Sign In'}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Signing in..." : "Sign In"}
             </Button>
-          </CardFooter>
-        </form>
+
+            <div className="text-center text-sm mt-4">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-blue-600 hover:underline">
+                Sign up
+              </Link>
+            </div>
+          </form>
+        </CardContent>
       </Card>
     </div>
   );

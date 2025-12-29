@@ -177,8 +177,12 @@ function CheckoutContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="min-h-screen bg-neutral-50 flex flex-col">
+      <div className="max-w-4xl mx-auto px-6 py-12 w-full">
+        {/* --- BRAND HEADER --- */}
+        <header className="mb-12">
+          <h1 className="text-2xl font-black tracking-tighter uppercase">{product?.user?.brandName || "HYPECHART"}</h1>
+        </header>
         {/* Header */}
         <div className="mb-12">
           <Link
@@ -355,7 +359,24 @@ function CheckoutContent() {
           </div>
         </div>
       </div>
-    </div>
+
+
+      <footer className="py-12 mt-auto border-t border-neutral-200 bg-neutral-100">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col items-center justify-center gap-3">
+          <p className="text-xs text-neutral-400">
+            &copy; {new Date().getFullYear()} {product?.user?.brandName || "Hypechart Brand"}. All rights reserved.
+          </p>
+          <a
+            href="https://hypechart.co"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-neutral-300 hover:text-neutral-900 transition-colors"
+          >
+            Powered by <span className="font-bold">Hypechart</span>
+          </a>
+        </div>
+      </footer>
+    </div >
   );
 }
 
