@@ -44,8 +44,8 @@ export default function NewProductPage() {
         const res = await apiClient.get('/auth/me');
 
         if (res.data.success) {
-          setCurrentUserId(res.data.data.id); // Save the REAL ID
-          console.log("Logged in as User:", res.data.data.id);
+          setCurrentUserId(res.data.user.id); // Save the REAL ID
+          console.log("Logged in as User:", res.data.user.id);
         }
       } catch (error) {
         console.error("Failed to fetch user info", error);

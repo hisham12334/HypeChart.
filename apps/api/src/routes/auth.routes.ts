@@ -11,6 +11,6 @@ router.post('/login', controller.login);
 
 // Protected Routes (Requires Token)
 // This is the one your Frontend calls to get the User ID
-router.get('/me', requireAuth, controller.me);
+router.get('/me', requireAuth, controller.getMe);
 
 export default router;

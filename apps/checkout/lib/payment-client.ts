@@ -3,9 +3,13 @@
  * Handles payment requests with automatic retry and duplicate prevention
  */
 
-interface CreateOrderRequest {
+interface OrderItem {
   variantId: string;
   quantity: number;
+}
+
+interface CreateOrderRequest {
+  items: OrderItem[];
   amount: number;
 }
 
@@ -35,7 +39,7 @@ class PaymentClient {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
-    
+
     // Fallback for older browsers
     return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
   }
@@ -95,7 +99,7 @@ class PaymentClient {
 
       // If successful, keep the key until payment is confirmed
       // Don't clear it yet - we might need to retry
-      
+
       return result;
     } catch (error) {
       console.error('Payment request failed:', error);

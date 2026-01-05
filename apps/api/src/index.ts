@@ -13,6 +13,9 @@ import { OrderController } from './controllers/order.controller';
 import orderRoutes from './routes/order.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import authRoutes from './routes/auth.routes';
+import paymentRoutes from './routes/payment.routes';
+import storeRoutes from './routes/store.routes';
+
 
 config({ path: path.resolve(__dirname, '../.env') });
 
@@ -41,6 +44,10 @@ app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }));
 // Regular JSON parser for other routes
 app.use(express.json());
 
+app.use('/api/payments', paymentRoutes);
+app.use('/api/store', storeRoutes);
+
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -57,7 +64,7 @@ app.post('/api/auth/register', async (req, res) => {
     const passwordHash = await authService.hashPassword(password);
 
     const user = await prisma.user.create({
-      data: { email, passwordHash, brandName }
+      data: { email, password: passwordHash, brandName }
     });
 
     res.json({ success: true, user: { id: user.id, email: user.email } });

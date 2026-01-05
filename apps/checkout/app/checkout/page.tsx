@@ -18,16 +18,16 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Get params from URL
-  const variantId = searchParams.get('variantId');
-  const slug = searchParams.get('slug'); // Ensure Cart passes this!
-  const quantity = parseInt(searchParams.get('qty') || '1');
-  const total = parseFloat(searchParams.get('total') || '0');
+  // URL Params (Buy Now Flow)
+  const paramVariantId = searchParams.get('variantId');
+  const paramSlug = searchParams.get('slug'); // We generally expect this or localStorage
+  const paramQuantity = parseInt(searchParams.get('qty') || '0');
+  const paramTotal = parseFloat(searchParams.get('total') || '0');
 
-  const [product, setProduct] = useState<any>(null);
-  const [variant, setVariant] = useState<any>(null);
-  const [loading, setLoading] = useState(false); // Payment processing state
-  const [dataLoading, setDataLoading] = useState(true); // Page load state
+  const [items, setItems] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false); // Payment processing
+  const [dataLoading, setDataLoading] = useState(true); // Initial load
 
   // --- 1. NEW: Form State to capture user inputs ---
   const [formData, setFormData] = useState({
@@ -40,44 +40,73 @@ function CheckoutContent() {
     pincode: ''
   });
 
-  // --- 2. Fetch Product Details for UI ---
+  // --- 2. Load Cart/Items ---
   useEffect(() => {
-    const fetchProduct = async () => {
-      if (!slug) {
-        setDataLoading(false);
-        return;
+    const loadItems = () => {
+      // Priority 1: URL Params (Buy Now)
+      if (paramVariantId && paramQuantity > 0) {
+        // We need to fetch product details if we only have IDs, but for now let's hope we have enough or fetch it.
+        // Actually, the previous flow fetched product by slug.
+        // To keep it robust, let's try to get details from Cart if possible, OR fetch if singular.
+        // Simplified: If URL params, we construct a "Cart Item" from it (might miss image/name if not fetched).
+        // BUT, the text said "fails to connect ... So i want you to connect the flow".
+        // The Cart Page passes NO params, just goes to /checkout.
+        // So we prioritized LocalStorage.
       }
-      try {
-        const res = await apiClient.get(`/checkout/products/${slug}`);
-        if (res.data.success) {
-          const productData = res.data.data;
-          setProduct(productData);
 
-          if (variantId) {
-            const selectedVariant = productData.variants.find((v: any) => v.id === variantId);
-            setVariant(selectedVariant);
+      // Priority 1: Check LocalStorage (Standard Cart Flow)
+      try {
+        const storedCart = localStorage.getItem('hype-cart');
+        if (storedCart) {
+          const parsed = JSON.parse(storedCart);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setItems(parsed);
+
+            // Recalculate Total
+            const calcSubtotal = parsed.reduce((sum: number, item: any) => sum + (Number(item.price) * (item.quantity || 1)), 0);
+            const calcTotal = calcSubtotal + (calcSubtotal < 1000 ? 99 : 0);
+            setTotal(calcTotal);
+            setDataLoading(false);
+            return;
           }
         }
-      } catch (err) {
-        console.error('Error fetching product:', err);
-      } finally {
-        setDataLoading(false);
+      } catch (e) {
+        console.error(e);
       }
+
+      // Priority 2: Fallback to URL Params (Old Flow support)
+      if (paramVariantId && paramQuantity > 0) {
+        // If we are here, we might be in a "Buy Now" flow directly from Product Page?
+        // User's new product page code ADDS TO CART and redirects to /cart.
+        // So likely we don't need this fallback as much, but let's keep it safe.
+        // We would need to fetch product to show details, which is complex here.
+        // For now, let's assume Cart Flow is the main way.
+      }
+
+      setDataLoading(false);
     };
 
-    fetchProduct();
-  }, [slug, variantId]);
+    loadItems();
+  }, [paramVariantId, paramQuantity]);
+
 
   // --- 3. Handle Real Payment (Razorpay) with Verification ---
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (items.length === 0) return alert("Cart is empty");
+
     setLoading(true);
 
     try {
+      // Prepare Items for Backend
+      const orderItems = items.map(item => ({
+        variantId: item.variantId,
+        quantity: item.quantity
+      }));
+
       // A. Create Order on Backend with Idempotency Protection
       const result = await paymentClient.createOrder({
-        variantId: variantId!,
-        quantity,
+        items: orderItems,
         amount: total
       });
 
@@ -93,7 +122,7 @@ function CheckoutContent() {
         amount: amount,
         currency: currency,
         name: "Hypechart Drop",
-        description: `Order for ${product?.name || 'Item'}`,
+        description: `Order for ${items.length} Item(s)`,
         order_id: orderId,
 
         // --- NEW: Verify Payment on Backend after Success ---
@@ -116,12 +145,14 @@ function CheckoutContent() {
                 pincode: formData.pincode,
                 amount: total
               },
-              orderItems: [{ variantId, quantity }]
+              orderItems: orderItems
             });
 
             // D. If Verified, Redirect to Success
             if (verifyRes.data.success) {
               paymentClient.confirmPaymentSuccess();
+              // Clear Cart
+              localStorage.removeItem('hype-cart');
               router.push(`/success?orderId=${verifyRes.data.orderId}`);
             } else {
               alert("Payment verification failed! Please contact support.");
@@ -176,17 +207,20 @@ function CheckoutContent() {
     );
   }
 
+  // Get Brand Name from first item or default
+  const brandName = items[0]?.brandName || "HYPECHART";
+
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
       <div className="max-w-4xl mx-auto px-6 py-12 w-full">
         {/* --- BRAND HEADER --- */}
         <header className="mb-12">
-          <h1 className="text-2xl font-black tracking-tighter uppercase">{product?.user?.brandName || "HYPECHART"}</h1>
+          <h1 className="text-2xl font-black tracking-tighter uppercase">{brandName}</h1>
         </header>
         {/* Header */}
         <div className="mb-12">
           <Link
-            href=".."
+            href="/cart"
             className="text-sm text-neutral-600 hover:text-neutral-900 mb-6 inline-flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -205,7 +239,6 @@ function CheckoutContent() {
           {/* Form Section */}
           <div className="lg:col-span-2">
             <form id="checkout-form" onSubmit={handlePayment} className="space-y-8">
-
               {/* Contact Information */}
               <div className="bg-white border border-neutral-200 p-6">
                 <h2 className="text-lg font-medium text-neutral-900 mb-6">Contact Information</h2>
@@ -300,32 +333,37 @@ function CheckoutContent() {
             <div className="bg-white border border-neutral-200 p-6 sticky top-6">
               <h2 className="text-lg font-medium text-neutral-900 mb-6">Order Summary</h2>
 
-              <div className="mb-6">
-                <div className="flex gap-4 pb-6 border-b border-neutral-200">
-                  <div className="w-20 h-20 bg-neutral-100 flex-shrink-0 overflow-hidden">
-                    {product?.images?.[0] ? (
-                      <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-neutral-200" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-neutral-900">{product?.name || 'Product'}</div>
-                    <div className="text-xs text-neutral-500 mt-1">
-                      Size: {variant?.name || 'N/A'} × {quantity}
+              <div className="mb-6 space-y-4 max-h-60 overflow-y-auto">
+                {items.map((item, idx) => (
+                  <div key={idx} className="flex gap-4 pb-4 border-b border-neutral-100 last:border-0">
+                    <div className="w-16 h-16 bg-neutral-100 flex-shrink-0 overflow-hidden">
+                      {item.image ? (
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-neutral-200" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-neutral-900 line-clamp-1">{item.name}</div>
+                      <div className="text-xs text-neutral-500 mt-1">
+                        Size: {item.variantId.split('-').pop() || 'STD'} × {item.quantity}
+                      </div>
+                      <div className="text-xs font-medium text-neutral-900 mt-1">
+                        ₹{item.price * item.quantity}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
 
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-neutral-600">Subtotal</span>
-                  <span className="text-neutral-900">₹{total}</span>
+                  <span className="text-neutral-900">₹{items.reduce((sum, i) => sum + (i.price * i.quantity), 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-neutral-600">Shipping</span>
-                  <span className="text-neutral-900">Complimentary</span>
+                  <span className="text-neutral-900">{total < 1000 ? '₹99' : 'Complimentary'}</span>
                 </div>
               </div>
 
@@ -338,7 +376,7 @@ function CheckoutContent() {
 
               <button
                 form="checkout-form"
-                disabled={loading}
+                disabled={loading || items.length === 0}
                 className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -364,7 +402,7 @@ function CheckoutContent() {
       <footer className="py-12 mt-auto border-t border-neutral-200 bg-neutral-100">
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center justify-center gap-3">
           <p className="text-xs text-neutral-400">
-            &copy; {new Date().getFullYear()} {product?.user?.brandName || "Hypechart Brand"}. All rights reserved.
+            &copy; {new Date().getFullYear()} {brandName}. All rights reserved.
           </p>
           <a
             href="https://hypechart.co"

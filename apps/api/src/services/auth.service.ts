@@ -29,13 +29,13 @@ export class AuthService {
   // Login Logic
   async login(email: string, password: string) {
     const user = await prisma.user.findUnique({ where: { email } });
-    
+
     if (!user) {
       throw new Error('Invalid credentials');
     }
 
-    const isValid = await this.verifyPassword(password, user.passwordHash);
-    
+    const isValid = await this.verifyPassword(password, user.password);
+
     if (!isValid) {
       throw new Error('Invalid credentials');
     }

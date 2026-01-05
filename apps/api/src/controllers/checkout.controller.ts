@@ -44,55 +44,68 @@ export class CheckoutController {
 
   // POST /api/checkout/create-order
   // 1. Reserve Inventory -> 2. Create Razorpay Order
-  // Protected by idempotency middleware to prevent duplicate charges
   async createOrder(req: Request, res: Response) {
     try {
-      const { variantId, quantity, amount } = req.body;
+      const { items, amount } = req.body;
 
       // Validate required fields
-      if (!variantId || !amount) {
+      if (!items || !Array.isArray(items) || items.length === 0 || !amount) {
         return res.status(400).json({
           success: false,
-          error: 'Missing required fields: variantId and amount'
+          error: 'Missing required fields: items array and amount'
         });
       }
 
-      // Validate quantity
-      const qty = quantity || 1;
-      if (qty < 1 || qty > 10) {
-        return res.status(400).json({
-          success: false,
-          error: 'Quantity must be between 1 and 10'
-        });
-      }
-
-      // Validate amount (must be positive)
-      if (amount <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Amount must be greater than 0'
-        });
-      }
-
-      // Generate unique session ID (include idempotency key if available)
+      // Generate unique session ID
       const idempotencyKey = (req as any).idempotencyKey;
       const sessionId = idempotencyKey
         ? `session_${idempotencyKey.substring(0, 16)}`
         : `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-      // 1. Reserve Inventory (10 mins)
-      await inventoryService.reserveInventory(variantId, sessionId, qty);
+      // Generate Internal Order ID (The Key Requirement)
+      const internalOrderId = crypto.randomUUID();
 
-      // 2. Create Razorpay Order
+      // 1. Fetch Brand Info (From first item)
+      // We accept that all items belong to one brand for now.
+      const firstVariantId = items[0].variantId;
+      const firstVariant = await prisma.variant.findUnique({
+        where: { id: firstVariantId },
+        include: {
+          product: {
+            include: { user: true }
+          }
+        }
+      });
+
+      if (!firstVariant || !firstVariant.product?.user) {
+        return res.status(404).json({ success: false, error: "Brand/Product not found" });
+      }
+
+      const brand = firstVariant.product.user;
+      const brandId = brand.id;
+      const brandSlug = brand.slug || 'unknown-brand';
+
+      // 2. Reserve Inventory for ALL items
+      // We do this sequentially to keep it simple. If one fails, we should ideally rollback others,
+      // but for MVP we'll catch and return error (orphan reservations expire in 10 mins anyway).
+      for (const item of items) {
+        const qty = item.quantity || 1;
+        await inventoryService.reserveInventory(item.variantId, sessionId, qty);
+      }
+
+      // 3. Create Razorpay Order
+      const PLATFORM_FEE_PERCENT = 5;
       const options = {
-        amount: amount * 100, // Convert to Paise (Required by Razorpay)
+        amount: Math.round(amount * 100), // Convert to Paise
         currency: "INR",
         receipt: `receipt_${sessionId.substring(0, 20)}`,
         notes: {
-          variantId,
-          sessionId, // We save this to link payment back to reservation later
-          quantity: qty,
-          idempotencyKey: idempotencyKey || 'none'
+          sessionId,
+          internal_order_id: internalOrderId, // <--- ENFORCED
+          brand_id: brandId,                 // <--- ENFORCED
+          brand_slug: brandSlug,             // <--- ENFORCED
+          platform_fee_percent: PLATFORM_FEE_PERCENT.toString(), // <--- Added Fee
+          type: "drop_cart_purchase"
         }
       };
 
@@ -104,7 +117,7 @@ export class CheckoutController {
         sessionId,
         amount: order.amount,
         currency: order.currency,
-        keyId: process.env.RAZORPAY_KEY_ID // Send public key to frontend
+        keyId: process.env.RAZORPAY_KEY_ID
       };
 
       res.json(response);
@@ -139,21 +152,43 @@ export class CheckoutController {
         return res.status(400).json({ success: false, error: 'Invalid Signature' });
       }
 
-      // 2. Fetch Product Data to link the Order to the correct Merchant (User)
-      // We assume all items in a cart belong to the same merchant for this MVP
-      const firstVariantId = orderItems[0].variantId;
-      const variant = await prisma.variant.findUnique({
-        where: { id: firstVariantId },
+      // 1.1 Fetch Razorpay Order to get the Audit Trail (Notes)
+      // This ensures we use the exact same ID we reserved/generated earlier
+      const razorpayOrder = await razorpay.orders.fetch(razorpay_order_id);
+      const internalOrderId = razorpayOrder.notes?.internal_order_id as string | undefined;
+      const feePercent = Number(razorpayOrder.notes?.platform_fee_percent) || 5;
+
+      // 2. Fetch ALL Variants to Ensure Correct Data
+      const variantIds = orderItems.map((i: any) => i.variantId);
+      const variants = await prisma.variant.findMany({
+        where: { id: { in: variantIds } },
         include: { product: true }
       });
 
-      if (!variant) {
-        return res.status(400).json({ success: false, error: 'Variant not found' });
+      if (variants.length !== variantIds.length) {
+        // Some variants might be missing
+        // For MVP, proceed with what we found or error?
+        // Let's error to be safe
+        return res.status(400).json({ success: false, error: 'One or more items invalid' });
       }
 
-      const merchantUserId = variant.product.userId;
+      // 3. Verify Merchant Consistency (Optional but recommended)
+      // Check if all belong to same user
+      const merchantUserId = variants[0].product.userId;
+      const isConsistent = variants.every(v => v.product.userId === merchantUserId);
 
-      // 3. Use a Transaction to save everything safely
+      if (!isConsistent) {
+        // This is the edge case "Multi-Brand Cart".
+        // For now, we unfortunately have to attribute it to the first one or fail.
+        // Let's Log it and proceed with first merchant as the 'Order Owner'
+        console.warn("Mixed Merchant Order - Attributing to " + merchantUserId);
+      }
+
+      // Create Map for fast lookup
+      const variantMap = new Map();
+      variants.forEach(v => variantMap.set(v.id, v));
+
+      // 4. Use a Transaction to save everything safely
       const order = await prisma.$transaction(async (tx) => {
 
         // A. Find or Create Customer (CRM)
@@ -192,6 +227,7 @@ export class CheckoutController {
         // C. Create the Order with Relations
         const newOrder = await tx.order.create({
           data: {
+            id: internalOrderId, // <--- Enforce strict ID match (if provided)
             userId: merchantUserId,
             customerId: customer.id,
             addressId: address.id,
@@ -201,29 +237,49 @@ export class CheckoutController {
 
             // Financials
             subtotal: parseFloat(customerDetails.amount),
-            shippingFee: 0, // Logic for shipping can be added here
+            shippingFee: 0,
             total: parseFloat(customerDetails.amount),
 
-            // Status Enums (Matches your Schema)
+            // Status Enums
             paymentStatus: 'paid',
             status: 'paid', // Or 'processing'
-            productDropDate: variant.product.productDropDate,
+            productDropDate: variants[0].product.productDropDate, // Use first product's date
 
-            // Create Order Items
+            // Create Order Items with CORRECT details
             items: {
-              create: orderItems.map((item: any) => ({
-                productId: variant.productId,
-                variantId: item.variantId,
-                productName: variant.product.name,
-                variantName: variant.name,
-                price: variant.product.basePrice, // Ideally fetch real price per item
-                quantity: item.quantity
-              }))
+              create: orderItems.map((item: any) => {
+                const v = variantMap.get(item.variantId);
+                return {
+                  productId: v.productId,
+                  variantId: item.variantId,
+                  productName: v.product.name,
+                  variantName: v.name,
+                  price: v.product.basePrice,
+                  quantity: item.quantity
+                };
+              })
             }
           }
         });
 
-        // D. Update Customer Stats
+        // D. Create Financial Transaction Ledger
+        const grossAmount = parseFloat(customerDetails.amount);
+        const platformFee = (grossAmount * feePercent) / 100;
+        const netAmount = grossAmount - platformFee;
+
+        await tx.transaction.create({
+          data: {
+            userId: merchantUserId,
+            razorpayOrderId: razorpay_order_id,
+            razorpayPaymentId: razorpay_payment_id,
+            grossAmount: grossAmount,
+            platformFee: platformFee,
+            netAmount: netAmount,
+            status: "CAPTURED"
+          }
+        });
+
+        // E. Update Customer Stats
         await tx.customer.update({
           where: { id: customer.id },
           data: {

@@ -6,53 +6,57 @@ import { apiClient } from '@/lib/api-client';
 import { Loader2, ArrowLeft, Minus, Plus, Trash2 } from 'lucide-react';
 
 function CartContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const variantId = searchParams.get('variantId');
-  const slug = searchParams.get('slug');
-
-  const [product, setProduct] = useState<any>(null);
-  const [variant, setVariant] = useState<any>(null);
+  const [cartItems, setCartItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [quantity, setQuantity] = useState(1);
 
-  // Fetch Product Data
+  // 1. Load Cart from LocalStorage
   useEffect(() => {
-    const fetchProduct = async () => {
-      if (!slug) {
-        setLoading(false);
-        return;
-      }
+    const loadCart = () => {
       try {
-        const res = await apiClient.get(`/checkout/products/${slug}`);
-        if (res.data.success) {
-          const productData = res.data.data;
-          setProduct(productData);
-
-          // Find the selected variant
-          if (variantId) {
-            const selectedVariant = productData.variants.find((v: any) => v.id === variantId);
-            setVariant(selectedVariant);
-          }
+        const storedCart = localStorage.getItem('hype-cart');
+        if (storedCart) {
+          setCartItems(JSON.parse(storedCart));
         }
-      } catch (err) {
-        console.error('Error fetching product:', err);
+      } catch (error) {
+        console.error("Failed to load cart", error);
       } finally {
         setLoading(false);
       }
     };
+    loadCart();
+  }, []);
 
-    fetchProduct();
-  }, [slug, variantId]);
+  // 2. Update Cart in LocalStorage
+  const updateCart = (newCart: any[]) => {
+    setCartItems(newCart);
+    localStorage.setItem('hype-cart', JSON.stringify(newCart));
+  };
 
-  // Calculations
-  const mockPrice = product?.basePrice || 1499;
-  const subtotal = mockPrice * quantity;
-  const shipping = subtotal < 1000 ? 99 : 0;
+  const removeItem = (index: number) => {
+    const newCart = [...cartItems];
+    newCart.splice(index, 1);
+    updateCart(newCart);
+  };
+
+  const updateQuantity = (index: number, delta: number) => {
+    const newCart = [...cartItems];
+    const item = newCart[index];
+    const newQty = (item.quantity || 1) + delta;
+    if (newQty > 0) {
+      item.quantity = newQty;
+      updateCart(newCart);
+    }
+  };
+
+  // 3. Calculate Totals
+  const subtotal = cartItems.reduce((sum, item) => sum + (Number(item.price) * (item.quantity || 1)), 0);
+  const shipping = subtotal > 0 && subtotal < 1000 ? 99 : 0;
   const total = subtotal + shipping;
 
   const handleCheckout = () => {
-    router.push(`/checkout?variantId=${variantId}&slug=${slug}&qty=${quantity}&total=${total}`);
+    if (cartItems.length === 0) return;
+    router.push('/checkout');
   };
 
   if (loading) {
@@ -63,11 +67,11 @@ function CartContent() {
     );
   }
 
-  if (!product) {
+  if (cartItems.length === 0) {
     return (
       <div className="h-screen flex items-center justify-center bg-neutral-50">
         <div className="text-center">
-          <p className="text-xl font-semibold text-neutral-900">Product not found</p>
+          <p className="text-xl font-semibold text-neutral-900">Your cart is empty</p>
           <button onClick={() => router.back()} className="mt-4 text-sm text-neutral-600 hover:text-neutral-900">
             Go back
           </button>
@@ -76,13 +80,16 @@ function CartContent() {
     );
   }
 
+  // Group items by brand (Optional UI enhancement, but for now just use first item's brand for header)
+  const brandName = cartItems[0]?.brandName || "HYPECHART";
+
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
       <div className="max-w-4xl mx-auto px-6 py-12 w-full">
 
         {/* --- BRAND HEADER --- */}
         <header className="mb-12">
-          <h1 className="text-2xl font-black tracking-tighter uppercase">{product?.user?.brandName || "HYPECHART"}</h1>
+          <h1 className="text-2xl font-black tracking-tighter uppercase">{brandName}</h1>
         </header>
 
         {/* Header */}
@@ -100,55 +107,63 @@ function CartContent() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white border border-neutral-200 p-6">
-              <div className="flex gap-6">
-                <div className="w-28 h-28 bg-neutral-100 flex-shrink-0 overflow-hidden">
-                  {product.images?.[0] ? (
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-neutral-200" />
-                  )}
-                </div>
-
-                <div className="flex-1">
-                  <div className="flex justify-between mb-2">
-                    <div>
-                      <h3 className="text-lg font-medium text-neutral-900">{product.name}</h3>
-                      <p className="text-sm text-neutral-600 mt-1">
-                        Size: {variant?.name || 'N/A'} | {variant?.type || 'Standard'}
-                      </p>
-                    </div>
-                    <button className="text-neutral-400 hover:text-neutral-900">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+            {cartItems.map((item, index) => (
+              <div key={`${item.variantId}-${index}`} className="bg-white border border-neutral-200 p-6">
+                <div className="flex gap-6">
+                  <div className="w-28 h-28 bg-neutral-100 flex-shrink-0 overflow-hidden">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-neutral-200" />
+                    )}
                   </div>
 
-                  <div className="flex justify-between items-end mt-6">
-                    <div className="text-lg text-neutral-900">₹{product.basePrice}</div>
+                  <div className="flex-1">
+                    <div className="flex justify-between mb-2">
+                      <div>
+                        <h3 className="text-lg font-medium text-neutral-900">{item.name}</h3>
+                        <p className="text-sm text-neutral-600 mt-1">
+                          Size: {item.variantId.split('-').pop() || 'Standard'}
+                          {/* Note: We don't have variant name stored, might want to add it to cart item in product page later */}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => removeItem(index)}
+                        className="text-neutral-400 hover:text-neutral-900"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
 
-                    <div className="flex items-center gap-4 border border-neutral-300">
-                      <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="px-3 py-2 hover:bg-neutral-50 transition-colors"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="text-sm font-medium">{quantity}</span>
-                      <button
-                        onClick={() => setQuantity(quantity + 1)}
-                        className="px-3 py-2 hover:bg-neutral-50 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+                    <div className="flex justify-between items-end mt-6">
+                      <div className="text-lg text-neutral-900">
+                        ₹{item.price}
+                      </div>
+
+                      <div className="flex items-center gap-4 border border-neutral-300">
+                        <button
+                          onClick={() => updateQuantity(index, -1)}
+                          className="px-3 py-2 hover:bg-neutral-50 transition-colors"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="text-sm font-medium">{item.quantity || 1}</span>
+                        <button
+                          onClick={() => updateQuantity(index, 1)}
+                          className="px-3 py-2 hover:bg-neutral-50 transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
 
           {/* Summary */}
@@ -194,7 +209,7 @@ function CartContent() {
       <footer className="py-12 mt-auto border-t border-neutral-200 bg-neutral-100">
         <div className="max-w-7xl mx-auto px-6 flex flex-col items-center justify-center gap-3">
           <p className="text-xs text-neutral-400">
-            &copy; {new Date().getFullYear()} {product?.user?.brandName || "Hypechart Brand"}. All rights reserved.
+            &copy; {new Date().getFullYear()} {brandName}. All rights reserved.
           </p>
           <a
             href="https://hypechart.co"

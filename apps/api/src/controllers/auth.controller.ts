@@ -1,103 +1,142 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@brand-order-system/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@brand-order-system/database';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey'; // Ensure this matches your .env
 
 export class AuthController {
 
-    // POST /api/auth/register
+    // -------------------------------------------------------
+    // REGISTER
+    // -------------------------------------------------------
     async register(req: Request, res: Response) {
         try {
-            const { email, password, brandName } = req.body;
+            const { email, password, name, brandName } = req.body;
 
             // 1. Check if user exists
-            const existing = await prisma.user.findUnique({ where: { email } });
-            if (existing) {
-                return res.status(400).json({ success: false, error: 'Email already exists' });
+            const existingUser = await prisma.user.findUnique({ where: { email } });
+            if (existingUser) {
+                return res.status(400).json({ success: false, error: 'User already exists' });
             }
 
-            // 2. Hash password
+            // 2. Generate Slug from Brand Name (or Name)
+            // "Haqq Founder" -> "haqq-founder"
+            // "Haqq" -> "haqq"
+            let rawSlug = (brandName || name || '').toLowerCase().trim().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+
+            // Fallback if slug became empty
+            if (!rawSlug) rawSlug = `brand-${Date.now()}`;
+
+            // 3. Ensure Slug is Unique
+            // If "haqq" exists, we make "haqq-1", "haqq-2"
+            let slug = rawSlug;
+            let count = 1;
+            while (await prisma.user.findUnique({ where: { slug } })) {
+                slug = `${rawSlug}-${count}`;
+                count++;
+            }
+
+            // 4. Hash Password
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            // 3. Create User
+            // 5. Create User
             const user = await prisma.user.create({
                 data: {
                     email,
-                    passwordHash: hashedPassword,
-                    brandName
+                    password: hashedPassword,
+                    name,
+                    brandName,
+                    slug // <--- Save the generated slug!
                 }
             });
 
-            // 4. Create Token (Optional: auto-login after register)
-            const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+            // 6. Generate Token
+            const token = jwt.sign(
+                { userId: user.id, email: user.email },
+                process.env.JWT_SECRET || 'supersecret',
+                { expiresIn: '7d' }
+            );
 
             res.status(201).json({
                 success: true,
                 token,
-                user: { id: user.id, email: user.email, brandName: user.brandName }
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    brandName: user.brandName,
+                    slug: user.slug
+                }
             });
 
-        } catch (error: any) {
-            console.error('Register error:', error);
+        } catch (error) {
+            console.error("Registration Error:", error); // Check your terminal for this log!
             res.status(500).json({ success: false, error: 'Registration failed' });
         }
     }
 
-    // POST /api/auth/login
+    // -------------------------------------------------------
+    // LOGIN
+    // -------------------------------------------------------
     async login(req: Request, res: Response) {
         try {
             const { email, password } = req.body;
 
-            // 1. Find User
+            // Find user
             const user = await prisma.user.findUnique({ where: { email } });
             if (!user) {
                 return res.status(400).json({ success: false, error: 'Invalid credentials' });
             }
 
-            // 2. Check Password
-            const isValid = await bcrypt.compare(password, user.passwordHash);
-            if (!isValid) {
+            // Check password
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
                 return res.status(400).json({ success: false, error: 'Invalid credentials' });
             }
 
-            // 3. Generate Token
-            const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+            // Generate Token
+            const token = jwt.sign(
+                { userId: user.id, email: user.email },
+                process.env.JWT_SECRET || 'supersecret',
+                { expiresIn: '7d' }
+            );
 
             res.json({
                 success: true,
                 token,
-                user: { id: user.id, email: user.email, brandName: user.brandName }
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    brandName: user.brandName,
+                    slug: user.slug
+                }
             });
-
-        } catch (error: any) {
-            console.error('Login error:', error);
+        } catch (error) {
+            console.error("Login Error:", error);
             res.status(500).json({ success: false, error: 'Login failed' });
         }
     }
 
-    // GET /api/auth/me
-    // This is the CRITICAL method for your Cloudinary folder logic
-    async me(req: Request, res: Response) {
+    // -------------------------------------------------------
+    // GET ME (Current User)
+    // -------------------------------------------------------
+    async getMe(req: Request, res: Response) {
         try {
-            // The 'requireAuth' middleware attaches the decoded token to (req as any).user
-            const user = (req as any).user;
+            // The 'req.user' is added by the requireAuth middleware
+            const userId = (req as any).user?.userId;
 
-            if (!user) {
-                return res.status(401).json({ success: false, error: 'Not authenticated' });
-            }
-
-            // We return the ID so the frontend can use it for folder naming
-            res.json({
-                success: true,
-                data: {
-                    id: user.userId,
-                    email: user.email
-                }
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { id: true, email: true, name: true, brandName: true, slug: true }
             });
 
+            if (!user) {
+                return res.status(404).json({ success: false, error: 'User not found' });
+            }
+
+            res.json({ success: true, user });
         } catch (error) {
             res.status(500).json({ success: false, error: 'Server error' });
         }

@@ -9,286 +9,180 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===================================
-// USERS & AUTHENTICATION
-// ===================================
-
+// --- 1. THE BRAND (USER) ---
 model User {
-  id              String        @id @default(uuid())
-  email           String        @unique
-  passwordHash    String        @map("password_hash")
-  brandName       String        @map("brand_name")
-  razorpayKeyId     String?       @map("razorpay_key_id")
-  razorpayKeySecret String?       @map("razorpay_key_secret")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  products        Product[]
-  orders          Order[]
-  customers       Customer[]
-  activityLogs    ActivityLog[]
-
-  @@map("users")
-}
-
-// ===================================
-// PRODUCTS & INVENTORY
-// ===================================
-
-model Product {
-  id               String       @id @default(uuid())
-  userId           String       @map("user_id")
-  name             String
-  description      String?      @db.Text
-  basePrice        Decimal      @map("base_price") @db.Decimal(10, 2)
-  images           Json? // Array of S3 URLs
-  isActive         Boolean      @default(true) @map("is_active")
-  checkoutSlug     String       @unique @map("checkout_slug")
-  earlyAccessUntil DateTime?    @map("early_access_until")
-  productDropDate  DateTime?    @map("product_drop_date") @db.Date
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
-
-  // Relations
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  variants         Variant[]
-  orderItems       OrderItem[]
-
-  @@index([userId])
-  @@index([checkoutSlug])
-  @@index([createdAt])
-  @@index([productDropDate])
-  @@map("products")
-}
-
-model Variant {
-  id              String   @id @default(uuid())
-  productId       String   @map("product_id")
-  name            String // "Size S", "Color Black", etc.
-  sku             String?
-  inventoryCount  Int      @default(0) @map("inventory_count")
-  reservedCount   Int      @default(0) @map("reserved_count")
-  priceAdjustment Decimal  @default(0) @map("price_adjustment") @db.Decimal(10, 2)
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  orderItems      OrderItem[]
-  cartReservations CartReservation[]
-
-  @@index([productId])
-  @@map("variants")
-}
-
-model CartReservation {
   id        String   @id @default(uuid())
-  variantId String   @map("variant_id")
-  sessionId String   @map("session_id")
-  quantity  Int      @default(1)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
+  email     String   @unique
+  password  String
+  name      String?
+  
+  // Brand Identity
+  brandName String?
+  slug      String?  @unique // The Public Link (e.g. 'drip-kult')
+  logoUrl   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
   // Relations
-  variant   Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
-
-  @@index([variantId])
-  @@index([sessionId])
-  @@index([expiresAt])
-  @@map("cart_reservations")
+  products     Product[]
+  transactions Transaction[]
+  customers    Customer[]
+  orders       Order[]
 }
 
-// ===================================
-// CUSTOMERS (CRM)
-// ===================================
+// --- 2. THE PRODUCT (Restored) ---
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String?  @unique
+  checkoutSlug String  @unique
+  description String?
+  basePrice   Decimal  // Use Decimal for money math
+  productDropDate DateTime? // When the product goes live
+  images      String[] // Array of Cloudinary URLs
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  variants    Variant[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- 3. THE VARIANTS (Sizes/Colors) ---
+model Variant {
+  id             String  @id @default(uuid())
+  name           String  // e.g. "Size M"
+  inventoryCount Int     @default(0)
+  reservedCount  Int     @default(0)
+  priceAdjustment Decimal @default(0)
+
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// --- 4. THE MONEY LEDGER (New) ---
+model Transaction {
+  id                String   @id @default(uuid())
+  
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  
+  // Audit Trail
+  razorpayOrderId   String   @unique
+  razorpayPaymentId String?
+  
+  // The Math
+  grossAmount       Float
+  platformFee       Float
+  netAmount         Float
+  
+  status            String   @default("CAPTURED")
+  createdAt         DateTime @default(now())
+}
+
+// --- 5. CRM & ORDERS (Restored for Checkout) ---
 
 model Customer {
-  id           String    @id @default(uuid())
-  userId       String    @map("user_id")
-  email        String?
-  phone        String
-  name         String
-  totalOrders  Int       @default(0) @map("total_orders")
-  totalSpent   Decimal   @default(0) @map("total_spent") @db.Decimal(10, 2)
-  firstOrderAt DateTime? @map("first_order_at")
-  lastOrderAt  DateTime? @map("last_order_at")
-  isVip        Boolean   @default(false) @map("is_vip")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders       Order[]
-  addresses    Address[]
-
-  @@unique([userId, phone])
-  @@index([userId])
-  @@index([phone])
-  @@index([totalSpent(sort: Desc)])
-  @@index([lastOrderAt(sort: Desc)])
-  @@map("customers")
+  id          String   @id @default(uuid())
+  
+  userId      String   // The Brand this customer belongs to
+  user        User     @relation(fields: [userId], references: [id])
+  
+  name        String
+  phone       String
+  email       String?
+  
+  totalSpent  Decimal  @default(0)
+  totalOrders Int      @default(0)
+  lastOrderAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  orders      Order[]
+  addresses   Address[]
+  
+  @@index([userId, phone]) // Fast lookup for repeat customers
 }
 
 model Address {
   id           String   @id @default(uuid())
-  customerId   String   @map("customer_id")
-  addressLine1 String   @map("address_line1")
-  addressLine2 String?  @map("address_line2")
+  
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id])
+  
+  addressLine1 String
   city         String
   state        String
   pincode      String
-  isDefault    Boolean  @default(false) @map("is_default")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  // Relations
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  isDefault    Boolean  @default(false)
+  
   orders       Order[]
-
-  @@index([customerId])
-  @@map("addresses")
-}
-
-// ===================================
-// ORDERS
-// ===================================
-
-enum PaymentStatus {
-  pending
-  paid
-  failed
-  refunded
-}
-
-enum OrderStatus {
-  paid
-  processing
-  shipped
-  delivered
-  cancelled
 }
 
 model Order {
-  id              String        @id @default(uuid())
-  userId          String        @map("user_id")
-  customerId      String?       @map("customer_id")
-  addressId       String?       @map("address_id")
-  orderNumber     String        @unique @map("order_number")
-  subtotal        Decimal       @db.Decimal(10, 2)
-  shippingFee     Decimal       @default(0) @map("shipping_fee") @db.Decimal(10, 2)
-  total           Decimal       @db.Decimal(10, 2)
-  razorpayOrderId String?       @map("razorpay_order_id")
-  razorpayPaymentId String?       @map("razorpay_payment_id")
-  paymentStatus   PaymentStatus @default(pending) @map("payment_status")
-  paidAt          DateTime?     @map("paid_at")
-  status          OrderStatus   @default(paid)
-  trackingNumber  String?       @map("tracking_number")
-  courierName     String?       @map("courier_name")
-  shippedAt       DateTime?     @map("shipped_at")
-  deliveredAt     DateTime?     @map("delivered_at")
-  productDropDate DateTime?     @map("product_drop_date") @db.Date
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customer        Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  address         Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  id              String   @id @default(uuid())
+  orderNumber     String   @unique // ORD-TIMESTAMP-RANDOM
+  
+  userId          String   // The Brand
+  user            User     @relation(fields: [userId], references: [id])
+  
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id])
+  
+  addressId       String
+  address         Address  @relation(fields: [addressId], references: [id])
+  
+  razorpayOrderId   String @unique
+  razorpayPaymentId String?
+  
+  // Financials
+  subtotal        Decimal
+  shippingFee     Decimal  @default(0)
+  total           Decimal
+  
+  paymentStatus   String   // 'paid', 'pending', 'failed'
+  status          String   // 'processing', 'shipped', 'delivered'
+  productDropDate DateTime?
+  paidAt          DateTime?
+  
   items           OrderItem[]
-
-  @@index([userId])
-  @@index([customerId])
-  @@index([orderNumber])
-  @@index([paymentStatus])
-  @@index([status])
-  @@index([createdAt(sort: Desc)])
-  @@index([productDropDate])
-  @@map("orders")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model OrderItem {
   id          String   @id @default(uuid())
-  orderId     String   @map("order_id")
-  productId   String?  @map("product_id")
-  variantId   String?  @map("variant_id")
-  productName String   @map("product_name")
-  variantName String   @map("variant_name")
-  price       Decimal  @db.Decimal(10, 2)
-  quantity    Int      @default(1)
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  // Relations
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  variant     Variant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-
-  @@index([orderId])
-  @@index([productId])
-  @@index([variantId])
-  @@map("order_items")
+  
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  
+  productId   String
+  variantId   String
+  
+  productName String
+  variantName String
+  price       Decimal
+  quantity    Int
 }
-
-// ===================================
-// ACTIVITY LOGS
-// ===================================
-
-model ActivityLog {
-  id         String   @id @default(uuid())
-  userId     String?  @map("user_id")
-  action     String // "product_created", "order_shipped", etc.
-  entityType String?  @map("entity_type")
-  entityId   String?  @map("entity_id")
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  // Relations
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([createdAt(sort: Desc)])
-  @@map("activity_logs")
-}
-
-// ===================================
-// WEBHOOK EVENTS
-// ===================================
 
 model WebhookEvent {
   id          String   @id @default(uuid())
-  eventId     String   @unique @map("event_id")
-  eventType   String   @map("event_type")
+  eventId     String   @unique
+  eventType   String
   payload     Json
-  processedAt DateTime @default(now()) @map("processed_at")
-
-  @@index([eventId])
-  @@index([processedAt])
-  @@map("webhook_events")
+  processedAt DateTime @default(now())
 }
 
-
-// ===================================
-// ORDER EVENTS
-// ===================================
-
-model Order {
-  id              String   @id @default(uuid())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Razorpay Details
-  razorpayOrderId   String   @unique
-  razorpayPaymentId String?
-  
-  // Customer Details
-  customerName    String
-  customerPhone   String
-  address         String
-  city            String
-  pincode         String
-  
-  // Order Details
-  totalAmount     Float
-  status          String   @default("pending") // pending, paid, shipped
-  items           Json 
+model CartReservation {
+  id        String   @id @default(uuid())
+  variantId String
+  sessionId String
+  quantity  Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
