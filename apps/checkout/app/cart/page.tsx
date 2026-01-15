@@ -54,9 +54,54 @@ function CartContent() {
   const shipping = subtotal > 0 && subtotal < 1000 ? 99 : 0;
   const total = subtotal + shipping;
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cartItems.length === 0) return;
-    router.push('/checkout');
+
+    // 1. Validate Stock before Proceeding
+    try {
+      setLoading(true);
+      // Transform for API
+      const itemsToCheck = cartItems.map(item => ({
+        variantId: item.variantId,
+        quantity: item.quantity || 1
+      }));
+
+      const res = await fetch('http://localhost:4000/api/store/stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToCheck })
+      });
+      const validData = await res.json();
+
+      if (validData.success) {
+        if (!validData.allInStock) {
+          // Find problem items
+          const problemItems = validData.results.filter((r: any) => !r.inStock);
+
+          // Alert User
+          const messages = problemItems.map((r: any) => {
+            const item = cartItems.find(c => c.variantId === r.variantId);
+            return `${item?.name || 'Item'} (Size: ${item?.variantId.split('-').pop()}): Only ${r.available} left (requested ${r.requested})`;
+          });
+
+          alert("Some items are no longer available:\n\n" + messages.join("\n") + "\n\nPlease adjust your cart.");
+          setLoading(false);
+          return;
+        }
+
+        // All Good? Go to Checkout
+        router.push('/checkout');
+      } else {
+        alert('Could not validate stock. Please try again.');
+        setLoading(false);
+      }
+
+    } catch (e) {
+      console.error("Stock check failed", e);
+      // Fallback: Let them try, checkout page will catch it or it's a network error
+      alert('Connectivity error. Please check your connection.');
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -84,8 +129,8 @@ function CartContent() {
   const brandName = cartItems[0]?.brandName || "HYPECHART";
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col">
-      <div className="max-w-4xl mx-auto px-6 py-12 w-full">
+    <div className="min-h-screen bg-neutral-50 flex flex-col pb-24 md:pb-0">
+      <div className="max-w-4xl mx-auto px-6 py-8 md:py-12 w-full">
 
         {/* --- BRAND HEADER --- */}
         <header className="mb-12">
@@ -127,8 +172,8 @@ function CartContent() {
                       <div>
                         <h3 className="text-lg font-medium text-neutral-900">{item.name}</h3>
                         <p className="text-sm text-neutral-600 mt-1">
-                          Size: {item.variantId.split('-').pop() || 'Standard'}
-                          {/* Note: We don't have variant name stored, might want to add it to cart item in product page later */}
+                          Size: {item.variantName || item.variantId.split('-').pop() || 'Standard'}
+                          {/* Display variant name if available, otherwise fallback to ID segment */}
                         </p>
                       </div>
                       <button
@@ -196,7 +241,7 @@ function CartContent() {
 
               <button
                 onClick={handleCheckout}
-                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2 hidden md:flex"
               >
                 PROCEED TO CHECKOUT
                 <ArrowLeft className="w-4 h-4 rotate-180" />
@@ -221,6 +266,23 @@ function CartContent() {
           </a>
         </div>
       </footer>
+
+      {/* STICKY MOBILE CHECKOUT BAR */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 p-4 md:hidden z-50 pb-safe">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-xs text-neutral-500 uppercase tracking-wide">Total</span>
+            <span className="text-lg font-serif">₹{total}</span>
+          </div>
+          <button
+            onClick={handleCheckout}
+            disabled={loading || cartItems.length === 0}
+            className="flex-1 bg-neutral-900 text-white py-3 px-4 text-sm font-bold tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            CHECKOUT <ArrowLeft className="w-4 h-4 rotate-180" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

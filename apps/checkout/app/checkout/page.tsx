@@ -211,7 +211,7 @@ function CheckoutContent() {
   const brandName = items[0]?.brandName || "HYPECHART";
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col">
+    <div className="min-h-screen bg-neutral-50 flex flex-col pb-24 md:pb-0">
       <div className="max-w-4xl mx-auto px-6 py-12 w-full">
         {/* --- BRAND HEADER --- */}
         <header className="mb-12">
@@ -346,7 +346,7 @@ function CheckoutContent() {
                     <div className="flex-1">
                       <div className="text-sm font-medium text-neutral-900 line-clamp-1">{item.name}</div>
                       <div className="text-xs text-neutral-500 mt-1">
-                        Size: {item.variantId.split('-').pop() || 'STD'} × {item.quantity}
+                        Size: {item.variantName || item.variantId.split('-').pop() || 'STD'} × {item.quantity}
                       </div>
                       <div className="text-xs font-medium text-neutral-900 mt-1">
                         ₹{item.price * item.quantity}
@@ -377,7 +377,7 @@ function CheckoutContent() {
               <button
                 form="checkout-form"
                 disabled={loading || items.length === 0}
-                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 hidden md:flex"
               >
                 {loading ? (
                   <>
@@ -414,6 +414,24 @@ function CheckoutContent() {
           </a>
         </div>
       </footer>
+
+      {/* STICKY MOBILE PAYMENT BAR */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 p-4 md:hidden z-50 pb-safe">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-xs text-neutral-500 uppercase tracking-wide">Pay Total</span>
+            <span className="text-lg font-serif">₹{total}</span>
+          </div>
+          <button
+            form="checkout-form"
+            disabled={loading || items.length === 0}
+            className="flex-1 bg-neutral-900 text-white py-3 px-4 text-sm font-bold tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+            {loading ? 'PROCESSING...' : 'PAY NOW'}
+          </button>
+        </div>
+      </div>
     </div >
   );
 }

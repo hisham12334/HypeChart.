@@ -50,11 +50,25 @@ export default function ProductPage() {
         if (productIdOrSlug) fetchProduct();
     }, [productIdOrSlug]);
 
+    // Helper to get selected variant details
+    const getSelectedVariantData = () => {
+        if (!product || !selectedVariant) return null;
+        return product.variants.find((v: any) => v.id === selectedVariant);
+    };
+
+    const selectedVariantData = getSelectedVariantData();
+
     // 2. THE BRIDGE: Save to Storage & Redirect to /cart
     const handleAddToCart = () => {
         if (!product) return;
         if (!selectedVariant) {
             alert('Please select a size first.');
+            return;
+        }
+
+        const variantData = getSelectedVariantData();
+        if (!variantData || variantData.availableCount <= 0) {
+            alert('This size is out of stock.');
             return;
         }
 
@@ -67,7 +81,8 @@ export default function ProductPage() {
             image: product.images[0],
             quantity: 1,
             brandName: product.user.brandName,
-            slug: product.slug
+            slug: product.slug,
+            variantName: product.variants.find((v: any) => v.id === selectedVariant)?.name || 'Standard'
         };
 
         // B. Save to Local Storage (This is how we pass data to your Cart page)
@@ -76,6 +91,11 @@ export default function ProductPage() {
         // Check if item already exists in cart, if so, just update quantity (Optional)
         const existingItemIndex = existingCart.findIndex((item: any) => item.variantId === selectedVariant);
         if (existingItemIndex > -1) {
+            // Simple client-side check, real check happens at cart/checkout
+            if (existingCart[existingItemIndex].quantity + 1 > variantData.availableCount) {
+                alert(`Only ${variantData.availableCount} items available.`);
+                return;
+            }
             existingCart[existingItemIndex].quantity += 1;
         } else {
             existingCart.push(cartItem);
@@ -92,8 +112,8 @@ export default function ProductPage() {
     if (!product) return <div className="h-screen flex items-center justify-center">Product Not Found</div>;
 
     return (
-        <div className="min-h-screen bg-neutral-50 flex flex-col text-black">
-            <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="min-h-screen bg-neutral-50 flex flex-col text-black pb-24 md:pb-0">
+            <div className="max-w-7xl mx-auto px-6 py-8 md:py-12">
 
                 {/* Brand Header */}
                 <header className="mb-12">
@@ -102,7 +122,7 @@ export default function ProductPage() {
                     </h1>
                 </header>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-20">
 
                     {/* Left: Images */}
                     <div className="space-y-4">
@@ -123,36 +143,86 @@ export default function ProductPage() {
 
                     {/* Right: Details */}
                     <div className="flex flex-col pt-4">
-                        <h1 className="text-4xl font-serif mb-4">{product.name}</h1>
+                        <h1 className="text-3xl md:text-4xl font-serif mb-2 md:mb-4">{product.name}</h1>
                         <p className="text-2xl font-light mb-8">₹{product.basePrice}</p>
                         <div className="text-neutral-600 mb-10" dangerouslySetInnerHTML={{ __html: product.description }} />
 
                         {/* Size Selector */}
                         <h3 className="text-sm font-bold uppercase tracking-widest mb-4">Select Size</h3>
                         <div className="flex gap-3 flex-wrap mb-12">
-                            {product.variants.map((variant: any) => (
-                                <button
-                                    key={variant.id}
-                                    onClick={() => setSelectedVariant(variant.id)}
-                                    className={`px-6 py-3 border ${selectedVariant === variant.id ? 'bg-black text-white border-black' : 'bg-white text-black border-neutral-200 hover:border-black'}`}
-                                >
-                                    {variant.name}
-                                </button>
-                            ))}
+                            {product.variants.map((variant: any) => {
+                                const isOutOfStock = variant.availableCount <= 0;
+                                return (
+                                    <button
+                                        key={variant.id}
+                                        onClick={() => !isOutOfStock && setSelectedVariant(variant.id)}
+                                        disabled={isOutOfStock}
+                                        className={`px-6 py-3 border relative ${selectedVariant === variant.id
+                                            ? 'bg-black text-white border-black'
+                                            : isOutOfStock
+                                                ? 'bg-neutral-100 text-neutral-400 border-neutral-100 cursor-not-allowed'
+                                                : 'bg-white text-black border-neutral-200 hover:border-black'
+                                            }`}
+                                    >
+                                        {variant.name}
+                                        {isOutOfStock && (
+                                            <span className="block text-[0.6rem] absolute -bottom-2 left-0 right-0 text-center text-red-500 font-bold tracking-widest uppercase">
+                                                Sold Out
+                                            </span>
+                                        )}
+                                    </button>
+                                )
+                            })}
                         </div>
+
+                        {/* Stock Message */}
+                        {selectedVariantData && selectedVariantData.availableCount > 0 && selectedVariantData.availableCount <= 5 && (
+                            <div className="mb-6 text-orange-600 text-sm font-medium flex items-center gap-2">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                                </span>
+                                Only {selectedVariantData.availableCount} left in stock!
+                            </div>
+                        )}
 
                         {/* ADD TO CART BUTTON */}
                         <button
                             onClick={handleAddToCart}
-                            className="w-full py-5 bg-black text-white font-bold tracking-widest uppercase hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
+                            disabled={!selectedVariant || (selectedVariantData?.availableCount || 0) <= 0}
+                            className={`hidden md:flex w-full py-5 font-bold tracking-widest uppercase transition-all items-center justify-center gap-2 ${!selectedVariant || (selectedVariantData?.availableCount || 0) <= 0
+                                ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                                : 'bg-black text-white hover:bg-gray-800'
+                                }`}
                         >
-                            ADD TO CART <ArrowRight className="w-5 h-5" />
+                            {selectedVariantData?.availableCount === 0 ? 'OUT OF STOCK' : 'ADD TO CART'}
+                            {(!selectedVariantData || selectedVariantData.availableCount > 0) && <ArrowRight className="w-5 h-5" />}
                         </button>
 
                         <p className="text-xs text-center text-neutral-400 mt-4 uppercase tracking-widest">
                             Secure Checkout • Free Shipping
                         </p>
                     </div>
+                </div>
+            </div>
+
+            {/* STICKY MOBILE ACTION BAR */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 p-4 md:hidden z-50 pb-safe">
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col">
+                        <span className="text-xs text-neutral-500 uppercase tracking-wide">Total</span>
+                        <span className="text-lg font-serif">₹{product.basePrice}</span>
+                    </div>
+                    <button
+                        onClick={handleAddToCart}
+                        disabled={!selectedVariant || (selectedVariantData?.availableCount || 0) <= 0}
+                        className={`flex-1 py-3 px-4 font-bold tracking-widest uppercase transition-all flex items-center justify-center gap-2 text-sm ${!selectedVariant || (selectedVariantData?.availableCount || 0) <= 0
+                            ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                            : 'bg-black text-white hover:bg-gray-800'
+                            }`}
+                    >
+                        {selectedVariantData?.availableCount === 0 ? 'SOLD OUT' : 'ADD TO CART'}
+                    </button>
                 </div>
             </div>
         </div>

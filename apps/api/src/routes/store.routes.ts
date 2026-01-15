@@ -8,6 +8,9 @@ const controller = new StoreController();
 // Frontend will call this to display the product page
 router.get('/product/:productId', controller.getProductById);
 
+// Stock Validation
+router.post('/stock', controller.checkStock);
+
 // (Optional) Keep the brand route if you want it later
 router.get('/:slug', controller.getStoreBySlug);
 

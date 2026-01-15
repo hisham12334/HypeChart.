@@ -6,75 +6,92 @@ const prisma = new PrismaClient();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 export class InventoryService {
-  
+
   // Reserve inventory for a customer (10 min lock)
   async reserveInventory(variantId: string, sessionId: string, quantity: number) {
     const LOCK_KEY = `lock:variant:${variantId}`;
-    
-    // 1. Acquire Lock (Prevent Race Conditions)
-    // We try to set a key that expires in 5 seconds. If it exists, someone else is buying.
+
+    // 1. Acquire Redis Lock (First line of defense for high concurrency)
     const acquired = await redis.set(LOCK_KEY, 'locked', 'EX', 5, 'NX');
     if (!acquired) {
       throw new Error('System busy, please try again');
     }
 
     try {
-      // 2. Check Database Inventory
-      const variant = await prisma.variant.findUnique({
-        where: { id: variantId }
-      });
+      // 2. Perform Atomic Transaction
+      // We wrap the DB logic in a transaction to ensure consistency
+      return await prisma.$transaction(async (tx) => {
 
-      if (!variant) throw new Error('Variant not found');
+        // A. Fetch current max inventory to perform the check
+        const variant = await tx.variant.findUnique({
+          where: { id: variantId }
+        });
 
-      // Available = Total - Reserved
-      const available = variant.inventoryCount - variant.reservedCount;
+        if (!variant) throw new Error('Variant not found');
 
-      if (available < quantity) {
-        throw new Error('Out of stock');
-      }
+        // B. ATOMIC UPDATE (The Critical Fix)
+        // Instead of calculating in JS, we tell the DB: 
+        // "Only increment reservedCount IF it won't exceed inventoryCount"
+        const updateResult = await tx.variant.updateMany({
+          where: {
+            id: variantId,
+            // This condition enforces the stock limit at the Database level
+            reservedCount: { lte: variant.inventoryCount - quantity }
+          },
+          data: {
+            reservedCount: { increment: quantity }
+          }
+        });
 
-      // 3. Create Reservation in DB
-      const reservation = await prisma.cartReservation.create({
-        data: {
-          variantId,
-          sessionId,
-          quantity,
-          expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes from now
+        // If count is 0, it means the 'where' condition failed (Stock is full)
+        if (updateResult.count === 0) {
+          throw new Error('Out of stock');
         }
-      });
 
-      // 4. Update Variant Reserved Count
-      await prisma.variant.update({
-        where: { id: variantId },
-        data: { reservedCount: { increment: quantity } }
-      });
+        // C. Create Reservation in DB
+        const reservation = await tx.cartReservation.create({
+          data: {
+            variantId,
+            sessionId,
+            quantity,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes from now
+          }
+        });
 
-      return { success: true, reservationId: reservation.id, expiresAt: reservation.expiresAt };
+        return {
+          success: true,
+          reservationId: reservation.id,
+          expiresAt: reservation.expiresAt
+        };
+      });
 
     } finally {
-      // 5. Release Lock
+      // 3. Release Redis Lock
       await redis.del(LOCK_KEY);
     }
   }
 
   // Release inventory (if payment fails or timeout)
   async releaseReservation(sessionId: string) {
+    // 1. Find the reservation
     const reservation = await prisma.cartReservation.findFirst({
       where: { sessionId }
     });
 
     if (reservation) {
-      await prisma.$transaction([
+      // 2. Atomic Cleanup
+      await prisma.$transaction(async (tx) => {
         // Decrease reserved count
-        prisma.variant.update({
+        await tx.variant.update({
           where: { id: reservation.variantId },
           data: { reservedCount: { decrement: reservation.quantity } }
-        }),
+        });
+
         // Delete reservation record
-        prisma.cartReservation.delete({
+        await tx.cartReservation.delete({
           where: { id: reservation.id }
-        })
-      ]);
+        });
+      });
     }
   }
 }

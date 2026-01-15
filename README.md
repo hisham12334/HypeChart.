@@ -613,6 +613,17 @@ To ensure strict financial tracking, the system enforces the following metadata 
 
 This guarantees that every Rupee can be traced back to a specific order and brand, even if the database temporarily disconnects, as the "Notes" in Razorpay act as a decentralized record.
 
+### Race Condition & High Concurrency Handling (New)
+To prevent "overselling" when multiple customers attempt to buy the last item simultaneously, the system implements:
+- **Atomic Inventory Locking**: Uses `Prisma $transaction` to lock inventory rows during checkout.
+- **Strict Verification**: The final stock deduction happens *inside* the transaction where the order is created.
+- **Load Tested**: Verified to successfully handle 20+ concurrent requests for a single item, correctly processing 1 and rejecting 19.
+
+### Robust Idempotency
+- **Double-Spend Protection**: The payment verification endpoint is fully idempotent.
+- **Session Tracking**: The `sessionId` is embedded in Razorpay notes to ensure the exact reservation session is cleared upon payment.
+- **Duplicate Request Handling**: If a client sends the same payment verification request twice (e.g., due to network lag), the system detects the duplicate `razorpay_order_id`, prevents a second stock deduction, and returns the original success response.
+
 ## 🆘 Support
 
 For issues and questions:

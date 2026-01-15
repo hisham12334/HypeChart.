@@ -15,6 +15,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import authRoutes from './routes/auth.routes';
 import paymentRoutes from './routes/payment.routes';
 import storeRoutes from './routes/store.routes';
+import rateLimit from 'express-rate-limit';
 
 
 config({ path: path.resolve(__dirname, '../.env') });
@@ -46,6 +47,8 @@ app.use(express.json());
 
 app.use('/api/payments', paymentRoutes);
 app.use('/api/store', storeRoutes);
+
+
 
 
 app.get('/health', (req, res) => {
@@ -89,4 +92,23 @@ app.use('/api/analytics', analyticsRoutes);
 
 app.listen(port, () => {
   console.log(`🚀 API Server running at http://localhost:${port}`);
+})
+
+// GENERAL LIMITER (Apply to all routes)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
 });
+
+// CHECKOUT LIMITER (Stricter!)
+const checkoutLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit each IP to 10 checkout attempts per hour
+  message: "Too many checkout attempts from this IP, please try again after an hour"
+});
+
+// Apply them
+app.use('/api', generalLimiter);
+app.use('/api/checkout', checkoutLimiter); // Apply stricter limit to checkout routes

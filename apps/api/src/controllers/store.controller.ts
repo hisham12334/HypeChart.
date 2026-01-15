@@ -35,11 +35,61 @@ export class StoreController {
                 return res.status(404).json({ success: false, error: "Product not found" });
             }
 
-            res.json({ success: true, product });
+            // Calculate real-time available stock
+            const variantsWithStock = product.variants.map((v: any) => ({
+                ...v,
+                availableCount: v.inventoryCount - v.reservedCount
+            }));
+
+            res.json({ success: true, product: { ...product, variants: variantsWithStock } });
 
         } catch (error) {
             console.error("Drop Link Error:", error);
             res.status(500).json({ success: false, error: "Could not load drop" });
+        }
+    }
+
+    // 3. Stock Check for Cart Validation
+    // POST /api/store/stock
+    async checkStock(req: Request, res: Response) {
+        try {
+            const { items } = req.body; // Expects [{ variantId, quantity }]
+
+            if (!items || !Array.isArray(items)) {
+                return res.status(400).json({ success: false, error: "Invalid items format" });
+            }
+
+            const variantIds = items.map((i: any) => i.variantId);
+            const variants = await prisma.variant.findMany({
+                where: { id: { in: variantIds } }
+            });
+
+            const stockMap = new Map();
+            variants.forEach(v => {
+                stockMap.set(v.id, v.inventoryCount - v.reservedCount);
+            });
+
+            const results = items.map((item: any) => {
+                const available = stockMap.get(item.variantId) || 0;
+                return {
+                    variantId: item.variantId,
+                    requested: item.quantity,
+                    available: available,
+                    inStock: available >= item.quantity
+                };
+            });
+
+            const allInStock = results.every((r: any) => r.inStock);
+
+            res.json({
+                success: true,
+                allInStock,
+                results
+            });
+
+        } catch (error) {
+            console.error("Stock Check Error:", error);
+            res.status(500).json({ success: false, error: "Could not validate stock" });
         }
     }
 }

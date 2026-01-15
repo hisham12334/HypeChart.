@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { InventoryService } from '../services/inventory.service';
 import { ProductService } from '../services/product.service';
+import { createOrderWithIdempotency } from '../services/order.service';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { PrismaClient } from '@brand-order-system/database';
@@ -157,6 +158,7 @@ export class CheckoutController {
       const razorpayOrder = await razorpay.orders.fetch(razorpay_order_id);
       const internalOrderId = razorpayOrder.notes?.internal_order_id as string | undefined;
       const feePercent = Number(razorpayOrder.notes?.platform_fee_percent) || 5;
+      const sessionId = razorpayOrder.notes?.sessionId as string;
 
       // 2. Fetch ALL Variants to Ensure Correct Data
       const variantIds = orderItems.map((i: any) => i.variantId);
@@ -184,115 +186,23 @@ export class CheckoutController {
         console.warn("Mixed Merchant Order - Attributing to " + merchantUserId);
       }
 
-      // Create Map for fast lookup
-      const variantMap = new Map();
-      variants.forEach(v => variantMap.set(v.id, v));
 
-      // 4. Use a Transaction to save everything safely
-      const order = await prisma.$transaction(async (tx) => {
+      // 4. Use OrderService for Atomic Creation
+      const orderData = {
+        merchantUserId,
+        sessionId: sessionId || "unknown_session",
+        customerDetails,
 
-        // A. Find or Create Customer (CRM)
-        let customer = await tx.customer.findFirst({
-          where: {
-            userId: merchantUserId,
-            phone: customerDetails.phone
-          }
-        });
+        orderItems,
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        internalOrderId: internalOrderId || `internal_${razorpay_order_id}`,
+        feePercent,
+        variants
+      };
 
-        if (!customer) {
-          customer = await tx.customer.create({
-            data: {
-              userId: merchantUserId,
-              name: customerDetails.name,
-              phone: customerDetails.phone,
-              email: customerDetails.email || null,
-              totalSpent: 0,
-              totalOrders: 0
-            }
-          });
-        }
-
-        // B. Create Address
-        const address = await tx.address.create({
-          data: {
-            customerId: customer.id,
-            addressLine1: customerDetails.address,
-            city: customerDetails.city,
-            state: customerDetails.state,
-            pincode: customerDetails.pincode,
-            isDefault: true
-          }
-        });
-
-        // C. Create the Order with Relations
-        const newOrder = await tx.order.create({
-          data: {
-            id: internalOrderId, // <--- Enforce strict ID match (if provided)
-            userId: merchantUserId,
-            customerId: customer.id,
-            addressId: address.id,
-            orderNumber: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            razorpayOrderId: razorpay_order_id,
-            razorpayPaymentId: razorpay_payment_id,
-
-            // Financials
-            subtotal: parseFloat(customerDetails.amount),
-            shippingFee: 0,
-            total: parseFloat(customerDetails.amount),
-
-            // Status Enums
-            paymentStatus: 'paid',
-            status: 'paid', // Or 'processing'
-            productDropDate: variants[0].product.productDropDate, // Use first product's date
-
-            // Create Order Items with CORRECT details
-            items: {
-              create: orderItems.map((item: any) => {
-                const v = variantMap.get(item.variantId);
-                return {
-                  productId: v.productId,
-                  variantId: item.variantId,
-                  productName: v.product.name,
-                  variantName: v.name,
-                  price: v.product.basePrice,
-                  quantity: item.quantity
-                };
-              })
-            }
-          }
-        });
-
-        // D. Create Financial Transaction Ledger
-        const grossAmount = parseFloat(customerDetails.amount);
-        const platformFee = (grossAmount * feePercent) / 100;
-        const netAmount = grossAmount - platformFee;
-
-        await tx.transaction.create({
-          data: {
-            userId: merchantUserId,
-            razorpayOrderId: razorpay_order_id,
-            razorpayPaymentId: razorpay_payment_id,
-            grossAmount: grossAmount,
-            platformFee: platformFee,
-            netAmount: netAmount,
-            status: "CAPTURED"
-          }
-        });
-
-        // E. Update Customer Stats
-        await tx.customer.update({
-          where: { id: customer.id },
-          data: {
-            totalOrders: { increment: 1 },
-            totalSpent: { increment: parseFloat(customerDetails.amount) },
-            lastOrderAt: new Date()
-          }
-        });
-
-        return newOrder;
-      });
-
-      return res.json({ success: true, orderId: order.id });
+      const result = await createOrderWithIdempotency(orderData, razorpay_order_id);
+      return res.json(result);
 
     } catch (error: any) {
       console.error("Verification Failed:", error);
