@@ -97,7 +97,10 @@ Thank you for shopping with Hypechart!
 
                     <div className="flex justify-between items-start mb-8 pb-8 border-b">
                         <div>
-                            <h1 className="text-3xl font-black uppercase tracking-tighter">Hypechart</h1>
+                            {/* FIX: Use Dynamic Brand Name if available, else Fallback */}
+                            <h1 className="text-3xl font-black uppercase tracking-tighter">
+                                {order.user?.brandName || "Hypechart"}
+                            </h1>
                             <p className="text-sm text-gray-500 mt-1">Premium Streetwear Drops</p>
                         </div>
                         <div className="text-right">

@@ -70,50 +70,80 @@ export default function OrdersPage() {
                             <p>No orders yet.</p>
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Order ID</TableHead>
-                                    <TableHead>Customer</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Total</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                        <>
+                            {/* --- DESKTOP TABLE VIEW --- */}
+                            <div className="hidden md:block rounded-md border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Order ID</TableHead>
+                                            <TableHead>Customer</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Total</TableHead>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {orders.map((order) => (
+                                            <TableRow key={order.id}>
+                                                <TableCell className="font-mono text-xs">{order.orderNumber}</TableCell>
+                                                <TableCell>
+                                                    <div className="font-medium">{order.customerName}</div>
+                                                    <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
+                                                        {order.status}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>₹{order.totalAmount || order.total}</TableCell>
+                                                <TableCell className="text-muted-foreground text-sm">
+                                                    {new Date(order.createdAt).toLocaleDateString()}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleViewOrder(order)}
+                                                        className="border-neutral-300 text-neutral-900 hover:bg-neutral-100"
+                                                    >
+                                                        <Eye className="w-4 h-4 mr-2" />
+                                                        View
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            {/* --- MOBILE CARD VIEW --- */}
+                            <div className="md:hidden space-y-4">
                                 {orders.map((order) => (
-                                    <TableRow key={order.id}>
-                                        <TableCell className="font-mono text-xs">{order.orderNumber}</TableCell>
-                                        <TableCell>
-                                            <div className="font-medium">{order.customerName}</div>
-                                            <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
+                                    <div key={order.id} className="bg-white p-4 rounded-xl border shadow-sm space-y-3" onClick={() => handleViewOrder(order)}>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="font-mono text-xs text-gray-400">#{order.orderNumber}</span>
+                                                <h3 className="font-bold text-gray-900">{order.customerName}</h3>
+                                            </div>
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider border ${getStatusColor(order.status)}`}>
                                                 {order.status}
                                             </span>
-                                        </TableCell>
-                                        <TableCell>₹{order.totalAmount || order.total}</TableCell>
-                                        <TableCell className="text-muted-foreground text-sm">
-                                            {new Date(order.createdAt).toLocaleDateString()}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {/* CHANGED: View button is now an Outline button (Visible) */}
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleViewOrder(order)}
-                                                className="border-neutral-300 text-neutral-900 hover:bg-neutral-100"
-                                            >
-                                                <Eye className="w-4 h-4 mr-2" />
-                                                View
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-sm border-t pt-3 border-dashed border-gray-100">
+                                            <div className="text-gray-500">
+                                                {new Date(order.createdAt).toLocaleDateString()}
+                                            </div>
+                                            <div className="font-bold text-lg">
+                                                ₹{order.totalAmount || order.total}
+                                            </div>
+                                        </div>
+                                    </div>
                                 ))}
-                            </TableBody>
-                        </Table>
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>
@@ -123,6 +153,6 @@ export default function OrdersPage() {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
             />
-        </div>
+        </div >
     );
 }

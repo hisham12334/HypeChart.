@@ -14,7 +14,8 @@ export class OrderController {
                 include: {
                     customer: true, // Get Customer Name/Phone
                     address: true,  // Get Shipping Address
-                    items: true     // Get Product Items
+                    items: true,    // Get Product Items
+                    user: true      // Get Brand Info (Name, Logo, etc.)
                 }
             });
 
