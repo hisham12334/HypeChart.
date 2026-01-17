@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+    --color-background: #050505;
+    --color-foreground: #ffffff;
+    --color-neon: #39FF14;
+    --color-neon-dim: #2cb810;
+    --color-surface: #121212;
+
+    --image-noise: url('/noise.png');
+    --image-grid: linear-gradient(to right, #222 1px, transparent 1px), linear-gradient(to bottom, #222 1px, transparent 1px);
+
+    --animate-marquee: marquee 25s linear infinite;
+
+    @keyframes marquee {
+        0% {
+            transform: translateX(0%);
+        }
+
+        100% {
+            transform: translateX(-100%);
+        }
+    }
+
+    --animate-border-scan: border-scan 4s linear infinite;
+
+    @keyframes border-scan {
+        0% {
+            transform: translateX(-100%);
+        }
+
+        100% {
+            transform: translateX(100%);
+        }
+    }
+}
+
+:root {
+    --background: #050505;
+    --foreground: #ffffff;
+}
+
+body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: inherit;
+}

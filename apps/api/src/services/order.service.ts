@@ -114,7 +114,7 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
 
                 // Status Enums
                 paymentStatus: 'paid',
-                status: 'processing', // Default to processing, not paid (status usually tracks fulfillment)
+                status: 'paid', // Set to 'paid' to reflect successful payment immediately
                 productDropDate: variants[0]?.product?.productDropDate,
 
                 // Create Order Items
