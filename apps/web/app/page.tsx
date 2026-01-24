@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { Hero } from "../components/hero";
 import { RealityCheck } from "../components/reality-check";
 import { Solution } from "../components/solution";
 import { CTAForm } from "../components/cta-form";
 import { BorderBeam } from "../components/border-beam";
+import { Footer } from "../components/footer";
 
 // Simple components defined inline for sections 4, 5, 6, 7, 8 to save file count
 // while maintaining the high-tier structure.
@@ -56,12 +58,7 @@ const SocialProof = () => (
     </section>
 );
 
-const Footer = () => (
-    <footer className="py-12 bg-black border-t border-white/10 text-center relative">
-        <BorderBeam />
-        <p className="text-gray-600 text-sm uppercase tracking-widest">© 2026 Hypechart. Respect the Drop.</p>
-    </footer>
-);
+
 
 export default function Home() {
     return (

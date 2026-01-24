@@ -16,6 +16,7 @@ import authRoutes from './routes/auth.routes';
 import paymentRoutes from './routes/payment.routes';
 import storeRoutes from './routes/store.routes';
 import rateLimit from 'express-rate-limit';
+import { startInventoryCleanupJob } from './jobs/inventory-cleanup.job';
 
 
 config({ path: path.resolve(__dirname, '../.env') });
@@ -36,6 +37,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'idempotency-key']
 }));
 
+startInventoryCleanupJob(); 
+console.log("⏰ Inventory Cleanup Job Scheduled");
 
 
 // IMPORTANT: Raw body parser for webhook signature verification
