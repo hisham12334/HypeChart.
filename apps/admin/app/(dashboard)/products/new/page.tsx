@@ -58,8 +58,8 @@ export default function NewProductPage() {
   }, []);
 
   // --- CLOUDINARY CONFIG ---
-  const CLOUD_NAME = "dsqetae27";
-  const UPLOAD_PRESET = "hypechart-products";
+  const CLOUD_NAME = "dfnvjyu59";
+  const UPLOAD_PRESET = "Hypechart";
 
   // --- HANDLERS ---
 

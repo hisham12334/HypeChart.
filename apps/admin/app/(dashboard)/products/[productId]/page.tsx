@@ -21,8 +21,8 @@ export default function EditProductPage() {
     const [fetching, setFetching] = useState(true); // For initial load
 
     // --- CLOUDINARY CONFIG ---
-    const CLOUD_NAME = "dsqetae27";
-    const UPLOAD_PRESET = "hypechart-products";
+    const CLOUD_NAME = "dfnvjyu59";
+    const UPLOAD_PRESET = "Hypechart";
 
     // --- STATE ---
     const fileInputRef = useRef<HTMLInputElement>(null);

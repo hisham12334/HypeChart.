@@ -23,16 +23,16 @@ const painPoints = [
 
 export const RealityCheck = () => {
     return (
-        <section className="py-24 bg-surface px-4 border-t border-white/5 relative">
+        <section className="py-16 md:py-24 bg-surface px-4 border-t border-white/5 relative">
             <BorderBeam />
             <div className="max-w-6xl mx-auto">
-                <div className="mb-16">
-                    <h2 className="text-4xl md:text-5xl font-black text-white uppercase mb-4">
+                <div className="mb-12 md:mb-16">
+                    <h2 className="text-3xl md:text-5xl font-black text-white uppercase mb-4">
                         The "8 PM Drop" is a <span className="text-red-500">War Zone.</span>
                     </h2>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                     {painPoints.map((point, i) => (
                         <motion.div
                             key={i}
@@ -40,7 +40,7 @@ export const RealityCheck = () => {
                             whileInView={{ opacity: 1, x: 0 }}
                             transition={{ delay: i * 0.2 }}
                             viewport={{ once: true }}
-                            className="p-8 bg-background border border-white/10 hover:border-neon/50 transition-colors group"
+                            className="p-6 md:p-8 bg-background border border-white/10 hover:border-neon/50 transition-colors group"
                         >
                             <point.icon className="w-12 h-12 text-gray-500 group-hover:text-neon mb-6 transition-colors" />
                             <h3 className="text-xl font-bold text-white mb-4 uppercase">{point.title}</h3>

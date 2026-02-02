@@ -10,12 +10,12 @@ import { Footer } from "../components/footer";
 // while maintaining the high-tier structure.
 
 const Comparison = () => (
-    <section className="py-24 bg-black border-y border-white/10 relative">
+    <section className="py-16 md:py-24 bg-black border-y border-white/10 relative">
         <BorderBeam />
         <div className="max-w-4xl mx-auto px-4">
-            <h2 className="text-3xl font-black text-white uppercase text-center mb-12">The Manual Hustle vs. The Hypechart Flow</h2>
-            <div className="grid grid-cols-2 gap-px bg-white/10 border border-white/10">
-                <div className="bg-surface p-8">
+            <h2 className="text-2xl md:text-3xl font-black text-white uppercase text-center mb-8 md:mb-12">The Manual Hustle vs. The Hypechart Flow</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10 border border-white/10">
+                <div className="bg-surface p-6 md:p-8">
                     <h3 className="text-red-500 font-bold uppercase mb-6">The Old Way (Pain) 🥵</h3>
                     <ul className="space-y-4 text-gray-400 text-sm">
                         <li>• Customer waits 15 mins for reply</li>
@@ -24,7 +24,7 @@ const Comparison = () => (
                         <li className="text-white font-bold pt-4">Result: Burnout</li>
                     </ul>
                 </div>
-                <div className="bg-background p-8 relative overflow-hidden">
+                <div className="bg-background p-6 md:p-8 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-20 h-20 bg-neon/10 blur-xl" />
                     <h3 className="text-neon font-bold uppercase mb-6">The Hypechart Way 🚀</h3>
                     <ul className="space-y-4 text-gray-300 text-sm">
@@ -40,16 +40,16 @@ const Comparison = () => (
 );
 
 const SocialProof = () => (
-    <section className="py-24 bg-surface px-4 relative">
+    <section className="py-16 md:py-24 bg-surface px-4 relative">
         <BorderBeam />
         <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-xs font-bold text-neon uppercase tracking-widest mb-12">From "Overwhelmed" to "Overjoyed"</h2>
-            <div className="grid md:grid-cols-2 gap-8">
-                <div className="bg-black p-8 border border-white/5 text-left">
+            <h2 className="text-xs font-bold text-neon uppercase tracking-widest mb-8 md:mb-12">From "Overwhelmed" to "Overjoyed"</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                <div className="bg-black p-6 md:p-8 border border-white/5 text-left">
                     <p className="text-gray-300 italic mb-6">"I used to dread Fridays. 300 DMs. Panic. Chaos. Now? I post the link, pour a drink, and watch the 'Sold Out' notifications roll in."</p>
                     <p className="text-white font-bold text-sm">— Founder, 12K Followers (Streetwear)</p>
                 </div>
-                <div className="bg-black p-8 border border-white/5 text-left">
+                <div className="bg-black p-6 md:p-8 border border-white/5 text-left">
                     <p className="text-gray-300 italic mb-6">"My customers actually thanked me. They hated waiting for my replies just as much as I hated typing them."</p>
                     <p className="text-white font-bold text-sm">— Curator, 8K Followers (Vintage)</p>
                 </div>

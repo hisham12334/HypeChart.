@@ -2,11 +2,11 @@ import Link from "next/link";
 import { BorderBeam } from "./border-beam";
 
 export const Footer = () => (
-    <footer className="py-24 bg-black border-t border-white/10 relative overflow-hidden">
+    <footer className="py-16 md:py-24 bg-black border-t border-white/10 relative overflow-hidden">
         <BorderBeam />
         <div className="max-w-7xl mx-auto px-4 relative z-10">
-            <div className="grid md:grid-cols-4 gap-12 mb-16">
-                <div className="col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-12 mb-12 md:mb-16">
+                <div className="md:col-span-2">
                     <Link href="/" className="inline-block">
                         <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-6">Hypechart.</h3>
                     </Link>
@@ -34,11 +34,11 @@ export const Footer = () => (
                 </div>
             </div>
 
-            <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 text-xs text-gray-600 uppercase tracking-widest">
+            <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-8 text-xs text-gray-600 uppercase tracking-widest">
                 <p>© 2026 Hypechart. All rights reserved.</p>
                 <div className="text-left md:text-right space-y-2">
                     <p className="font-bold text-gray-500">Hypechart Technologies Pvt Ltd</p>
-                    <p>Payyanur, Trikkaripur, Kannur, Kerela - 671312</p>
+                    <p>Payyanur, Trikkaripur, Kannur, Kerela - 671310</p>
                     <p>Contact: hypechart@zohomail.in</p>
                 </div>
             </div>

@@ -4,11 +4,11 @@ import { Footer } from "../../components/footer";
 export default function RefundPage() {
     return (
         <main className="min-h-screen bg-background selection:bg-neon selection:text-black flex flex-col">
-            <nav className="p-6 border-b border-white/10">
+            <nav className="p-4 md:p-6 border-b border-white/10">
                 <Link href="/" className="text-sm font-bold text-white hover:text-neon uppercase tracking-widest transition-colors">← Back to Hypechart</Link>
             </nav>
-            <div className="flex-1 max-w-4xl mx-auto px-6 py-24 w-full">
-                <h1 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter mb-12">Refund & Cancellation Policy</h1>
+            <div className="flex-1 max-w-4xl mx-auto px-6 py-16 md:py-24 w-full">
+                <h1 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tighter mb-8 md:mb-12">Refund & Cancellation Policy</h1>
                 <div className="space-y-8 text-gray-400 leading-relaxed text-lg">
 
                     <div className="space-y-4">
