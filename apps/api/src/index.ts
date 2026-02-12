@@ -15,6 +15,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import authRoutes from './routes/auth.routes';
 import paymentRoutes from './routes/payment.routes';
 import storeRoutes from './routes/store.routes';
+import waitlistRoutes from './routes/waitlist.routes';
 import rateLimit from 'express-rate-limit';
 import { startInventoryCleanupJob } from './jobs/inventory-cleanup.job';
 
@@ -37,7 +38,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'idempotency-key']
 }));
 
-startInventoryCleanupJob(); 
+startInventoryCleanupJob();
 console.log("⏰ Inventory Cleanup Job Scheduled");
 
 
@@ -92,6 +93,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/waitlist', waitlistRoutes);
 
 app.listen(port, () => {
   console.log(`🚀 API Server running at http://localhost:${port}`);

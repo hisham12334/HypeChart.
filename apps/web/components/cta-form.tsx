@@ -6,11 +6,36 @@ import { BorderBeam } from "./border-beam";
 export const CTAForm = () => {
     const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('submitting');
-        // Simulate API call
-        setTimeout(() => setStatus('success'), 1500);
+
+        try {
+            // Get form data
+            const formData = new FormData(e.target as HTMLFormElement);
+            const data = {
+                brandName: formData.get('brandName'),
+                instagram: formData.get('instagram'),
+                email: formData.get('email')
+            };
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/waitlist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                setStatus('success');
+            } else {
+                alert('Something went wrong. Please try again.');
+                setStatus('idle');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Network error. Please try again.');
+            setStatus('idle');
+        }
     };
 
     if (status === 'success') {
@@ -39,17 +64,17 @@ export const CTAForm = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold text-neon uppercase tracking-widest mb-2">Brand Name</label>
-                        <input required type="text" className="w-full bg-black border border-white/20 p-3 md:p-4 text-white focus:border-neon outline-none transition-colors" placeholder="e.g. Drip Kartel" />
+                        <input name="brandName" required type="text" className="w-full bg-black border border-white/20 p-3 md:p-4 text-white focus:border-neon outline-none transition-colors" placeholder="e.g. Drip Kartel" />
                     </div>
 
                     <div>
                         <label className="block text-xs font-bold text-neon uppercase tracking-widest mb-2">Instagram Handle (Required)</label>
-                        <input required type="text" className="w-full bg-black border border-white/20 p-3 md:p-4 text-white focus:border-neon outline-none transition-colors" placeholder="@yourbrand" />
+                        <input name="instagram" required type="text" className="w-full bg-black border border-white/20 p-3 md:p-4 text-white focus:border-neon outline-none transition-colors" placeholder="@yourbrand" />
                     </div>
 
                     <div>
                         <label className="block text-xs font-bold text-neon uppercase tracking-widest mb-2">Email</label>
-                        <input required type="email" className="w-full bg-black border border-white/20 p-3 md:p-4 text-white focus:border-neon outline-none transition-colors" placeholder="founder@hypechart.com" />
+                        <input name="email" required type="email" className="w-full bg-black border border-white/20 p-3 md:p-4 text-white focus:border-neon outline-none transition-colors" placeholder="founder@hypechart.com" />
                     </div>
 
                     <motion.button

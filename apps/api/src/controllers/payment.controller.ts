@@ -104,6 +104,14 @@ export class PaymentController {
             }
 
             // Parse Notes
+            const type = orderInfo.notes?.type;
+
+            // SPECIAL CASE: Subscription Activation
+            if (type === 'subscription_activation') {
+                console.log(`✅ Subscription Payment Verified: ${razorpay_order_id}`);
+                return res.json({ success: true, message: "Subscription verified" });
+            }
+
             // We force 'as string' because we know we saved them as strings earlier
             const brandId = orderInfo.notes.brand_id as string;
             const grossAmount = Number(orderInfo.amount) / 100;
@@ -131,6 +139,42 @@ export class PaymentController {
         } catch (error) {
             console.error("Verification Error:", error);
             res.status(500).json({ success: false, error: "Payment verification failed" });
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 1.5. CREATE SUBSCRIPTION ORDER (For Razorpay Activation)
+    // ---------------------------------------------------------
+    async createSubscriptionOrder(req: Request, res: Response) {
+        try {
+            const amountInRupees = 700;
+            const amountInPaise = amountInRupees * 100;
+
+            const options = {
+                amount: amountInRupees * 100, // Fixed: use calculated paise or just * 100
+                currency: "INR",
+                receipt: `sub_${Date.now().toString().slice(-8)}`,
+                payment_capture: 1,
+                notes: {
+                    type: "subscription_activation",
+                    description: "Hypechart Pro Monthly"
+                }
+            };
+
+            const order = await razorpay.orders.create(options);
+
+            res.json({
+                success: true,
+                orderId: order.id,
+                amount: amountInPaise,
+                currency: "INR",
+                keyId: process.env.RAZORPAY_KEY_ID,
+                productName: "Hypechart Pro Monthly"
+            });
+
+        } catch (error: any) {
+            console.error("Subscription Init Error:", error);
+            res.status(500).json({ success: false, error: "Subscription initialization failed" });
         }
     }
 }

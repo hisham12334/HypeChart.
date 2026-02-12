@@ -6,7 +6,7 @@ const controller = new PaymentController();
 
 // POST /api/payments/create-order
 router.post('/create-order', controller.createOrder);
-
+router.post('/subscription', controller.createSubscriptionOrder);
 // POST /api/payments/verify
 router.post('/verify', controller.verifyPayment);
 

@@ -206,3 +206,12 @@ model IdempotencyKey {
 
   @@index([createdAt])
 }
+
+// --- 6. WAITLIST (New) ---
+model Waitlist {
+  id        String   @id @default(uuid())
+  brandName String
+  instagram String
+  email     String
+  createdAt DateTime @default(now())
+}
