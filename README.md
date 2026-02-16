@@ -369,11 +369,11 @@ Comprehensive guides for system features and operations:
 
 ### ✅ Completed Features
 
-#### Core System
+#### Infrastructure
 - [x] Monorepo setup with pnpm workspaces
 - [x] PostgreSQL database with Prisma ORM
 - [x] Redis caching layer
-- [x] Docker containerization
+- [x] Docker containerization (Single multi-stage Dockerfile for all apps)
 - [x] TypeScript configuration across all packages
 
 #### Authentication & Security
@@ -397,6 +397,7 @@ Comprehensive guides for system features and operations:
 - [x] Idempotency middleware for payment operations
 - [x] Client-side idempotency key generation
 - [x] Automatic retry handling with preserved idempotency keys
+- [x] **Subscription Payment Logic**: Support for subscription-based order creation and automated status updates
 
 #### Order Management
 - [x] Order creation and tracking
@@ -410,6 +411,8 @@ Comprehensive guides for system features and operations:
 - [x] Product listing pages
 - [x] Cart functionality
 - [x] Payment UI integration
+- [x] **Premium Landing Page**: Redesigned landing page with Hero, Solution, and CTA sections
+- [x] **Mobile-Responsive Admin**: New mobile navigation and layouts for efficient management on the go
 
 ### 🚧 In Progress / Planned
 
