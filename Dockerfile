@@ -45,4 +45,5 @@ WORKDIR /app/apps/${APP_NAME}
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "if [ \"$APP_NAME\" = \"api\" ]; then npx prisma migrate deploy && pnpm start; else pnpm start; fi"]
+CMD ["sh", "-c", "if [ \"$APP_NAME\" = \"api\" ]; then pnpm prisma migrate deploy && pnpm start; else pnpm start; fi"]
+
