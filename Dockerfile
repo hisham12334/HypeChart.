@@ -43,6 +43,10 @@ COPY --from=builder /app .
 
 WORKDIR /app/apps/${APP_NAME}
 
+# force rebuild
+RUN pnpm install --frozen-lockfile
+
+
 EXPOSE 3000
 
 CMD ["pnpm", "start"]
