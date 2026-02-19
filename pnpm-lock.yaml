@@ -286,9 +286,18 @@ importers:
         specifier: 5.7.0
         version: 5.7.0
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.25
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
+      ts-node:
+        specifier: ^10.9.1
+        version: 10.9.2(@types/node@20.19.25)(typescript@5.9.3)
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
