@@ -49,4 +49,5 @@ redis_data/
 
 # Backup files
 *.sql
+!packages/database/prisma/migrations/**/*.sql
 *.backup
