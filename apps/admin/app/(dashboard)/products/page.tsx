@@ -16,7 +16,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const CHECKOUT_URL = process.env.NEXT_PUBLIC_CHECKOUT_URL || 'http://localhost:3001';
+  const CHECKOUT_URL = process.env.NEXT_PUBLIC_CHECKOUT_URL || 'https://hype-chart.com';
 
   useEffect(() => {
     fetchProducts();
