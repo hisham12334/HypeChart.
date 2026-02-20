@@ -6,6 +6,7 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "create-brand": "ts-node scripts/create-brand.ts",
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "morgan": "^1.10.0",
     "node-cron": "^4.2.1",
     "razorpay": "^2.9.6",
+    "slugify": "^1.6.6",
     "zod": "^4.1.13"
   },
   "devDependencies": {
