@@ -14,7 +14,7 @@ export default function PrivacyPage() {
 
                     <div className="space-y-4">
                         <h2 className="text-2xl font-bold text-white">1. Introduction</h2>
-                        <p>Hypechart Technologies Pvt Ltd ("us", "we", or "our") operates the Hypechart website and application (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service and the choices you have associated with that data.</p>
+                        <p>Hypechart Technologies ("us", "we", or "our") operates the Hypechart website and application (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service and the choices you have associated with that data.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
 
                     <div className="space-y-4">
                         <h2 className="text-2xl font-bold text-white">3. Use of Data</h2>
-                        <p>Hypechart Technologies Pvt Ltd uses the collected data for various purposes:</p>
+                        <p>Hypechart Technologies uses the collected data for various purposes:</p>
                         <ul className="list-disc pl-5 space-y-2">
                             <li>To provide and maintain the Service</li>
                             <li>To notify you about changes to our Service</li>

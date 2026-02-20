@@ -38,7 +38,7 @@ export const Footer = () => (
             <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-8 text-xs text-gray-600 uppercase tracking-widest">
                 <p>© 2026 Hypechart. All rights reserved.</p>
                 <div className="text-left md:text-right space-y-2">
-                    <p className="font-bold text-gray-500">Hypechart Technologies Pvt Ltd</p>
+                    <p className="font-bold text-gray-500">Hypechart Technologies</p>
                     <p>Payyanur, Trikkaripur, Kannur, Kerela - 671310</p>
                     <p>Contact: hypechart@zohomail.in</p>
                 </div>

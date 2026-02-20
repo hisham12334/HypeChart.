@@ -18,7 +18,7 @@ export default function RefundPage() {
 
                     <div className="space-y-4">
                         <h2 className="text-2xl font-bold text-white">2. Refund Policy</h2>
-                        <p><strong>General:</strong> Hypechart Technologies Pvt Ltd generally does not offer refunds for subscription fees paid, except as required by applicable law or as specifically provided in these terms.</p>
+                        <p><strong>General:</strong> Hypechart Technologies generally does not offer refunds for subscription fees paid, except as required by applicable law or as specifically provided in these terms.</p>
                         <p><strong>Monthly Subscriptions:</strong> There are no refunds for monthly subscriptions once the billing period has commenced.</p>
                         <p><strong>Annual Subscriptions:</strong> If you cancel within the first 7 days of an annual subscription, you may be eligible for a refund. Contact support for assistance.</p>
                     </div>

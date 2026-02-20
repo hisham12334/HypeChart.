@@ -13,7 +13,7 @@ export default function ShippingPage() {
 
                     <div className="space-y-4">
                         <h2 className="text-2xl font-bold text-white">1. Digital Delivery</h2>
-                        <p>Hypechart Technologies Pvt Ltd is a Software as a Service (SaaS) provider. We do not ship physical products.</p>
+                        <p>Hypechart Technologies is a Software as a Service (SaaS) provider. We do not ship physical products.</p>
                         <p>Upon successful payment and subscription, you will receive immediate access to the Hypechart platform and all features included in your purchased plan. Confirmation and login details will be sent to your registered email address.</p>
                     </div>
 

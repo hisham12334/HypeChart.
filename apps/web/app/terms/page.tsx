@@ -12,7 +12,7 @@ export default function TermsPage() {
                 <div className="space-y-8 text-gray-400 leading-relaxed text-lg">
                     <div className="space-y-4">
                         <h2 className="text-2xl font-bold text-white">1. Introduction</h2>
-                        <p>Welcome to Hypechart Technologies Pvt Ltd ("Company", "we", "our", "us"). These Terms and Conditions ("Terms", "Terms and Conditions") govern your use of our website and SaaS application (the "Service") operated by Hypechart Technologies Pvt Ltd.</p>
+                        <p>Welcome to Hypechart Technologies ("Company", "we", "our", "us"). These Terms and Conditions ("Terms", "Terms and Conditions") govern your use of our website and SaaS application (the "Service") operated by Hypechart Technologies.</p>
                         <p>By accessing or using the Service you agree to be bound by these Terms. If you disagree with any part of the terms then you may not access the Service.</p>
                     </div>
 
@@ -34,7 +34,7 @@ export default function TermsPage() {
 
                     <div className="space-y-4">
                         <h2 className="text-2xl font-bold text-white">5. Intellectual Property</h2>
-                        <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Hypechart Technologies Pvt Ltd and its licensors. The Service is protected by copyright, trademark, and other laws of both India and foreign countries.</p>
+                        <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Hypechart Technologies and its licensors. The Service is protected by copyright, trademark, and other laws of both India and foreign countries.</p>
                     </div>
 
                     <div className="space-y-4">
