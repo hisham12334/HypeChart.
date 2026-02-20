@@ -4,8 +4,7 @@ import helmet from 'helmet';
 import morgan = require('morgan');
 import { config } from 'dotenv';
 import path from 'path';
-import { AuthService } from './services/auth.service';
-import { PrismaClient } from '@brand-order-system/database';
+
 import productRoutes from './routes/product.routes';
 import checkoutRoutes from './routes/checkout.routes';
 import webhookRoutes from './routes/webhook.routes';
@@ -20,12 +19,14 @@ import rateLimit from 'express-rate-limit';
 import { startInventoryCleanupJob } from './jobs/inventory-cleanup.job';
 
 
-config({ path: path.resolve(__dirname, '../.env') });
+// Resolve .env from monorepo root (works for both ts-node from src/ and node from dist/)
+const envPath = path.resolve(__dirname, '../../.env');
+config({ path: envPath });
+console.log(`📄 Loading env from: ${envPath}`);
 
 const app = express();
 const port = process.env.PORT || 4000;
-const prisma = new PrismaClient();
-const authService = new AuthService();
+
 const orderController = new OrderController();
 
 
@@ -64,32 +65,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/auth', authRoutes);
 
-// Register Route (Temporary for setup)
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { email, password, brandName } = req.body;
-    const passwordHash = await authService.hashPassword(password);
-
-    const user = await prisma.user.create({
-      data: { email, password: passwordHash, brandName }
-    });
-
-    res.json({ success: true, user: { id: user.id, email: user.email } });
-  } catch (error: any) {
-    res.status(400).json({ success: false, error: error.message });
-  }
-});
-
-// Login Route
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const result = await authService.login(email, password);
-    res.json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(401).json({ success: false, error: error.message });
-  }
-});
+// NOTE: /api/auth/login and /api/auth/register are handled by authRoutes above
 
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/analytics', analyticsRoutes);
