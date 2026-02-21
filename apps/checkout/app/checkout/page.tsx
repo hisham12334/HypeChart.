@@ -432,7 +432,7 @@ function CheckoutContent() {
           </button>
         </div>
       </div>
-    </div >
+    </div>
   );
 }
 
