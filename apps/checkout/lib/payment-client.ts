@@ -27,7 +27,7 @@ class PaymentClient {
   private baseUrl: string;
   private currentIdempotencyKey: string | null = null;
 
-  constructor(baseUrl: string = 'http://localhost:4000') {
+  constructor(baseUrl: string = 'http://localhost:4000/api') {
     this.baseUrl = baseUrl;
   }
 
@@ -79,7 +79,7 @@ class PaymentClient {
     const idempotencyKey = this.getIdempotencyKey();
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/checkout/create-order`, {
+      const response = await fetch(`${this.baseUrl}/checkout/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ class PaymentClient {
 
 // Export singleton instance
 export const paymentClient = new PaymentClient(
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'
 );
 
 // Export class for testing
