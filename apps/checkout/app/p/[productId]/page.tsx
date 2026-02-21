@@ -34,7 +34,9 @@ export default function ProductPage() {
     useEffect(() => {
         const fetchProduct = async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/store/product/${productIdOrSlug}`);
+                // Use the environment variable, falling back to localhost for local dev
+                const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+                const res = await fetch(`${API_URL}/store/product/${productIdOrSlug}`);
                 const data = await res.json();
 
                 if (data.success) {
