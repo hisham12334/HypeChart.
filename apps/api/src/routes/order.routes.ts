@@ -21,6 +21,7 @@ const requireAuth = (req: any, res: any, next: any) => {
     }
 };
 
-router.get('/', requireAuth, controller.list);
+router.get('/', requireAuth, controller.list.bind(controller));
+router.patch('/:id/status', requireAuth, controller.updateStatus.bind(controller));
 
 export default router;

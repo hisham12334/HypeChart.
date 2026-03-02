@@ -42,6 +42,9 @@ coverage/
 # Temporary files
 *.tmp
 .cache/
+tmp_seed.js
+tsc_output.txt
+fix_fees.js
 
 # Docker volumes
 postgres_data/

@@ -131,10 +131,15 @@ function CheckoutContent() {
             console.log("Razorpay Success:", response);
 
             // C. Call Backend to Verify & Save Order
+            // brandId is stored in each cart item so the backend knows which
+            // brand's Razorpay secret key to use for signature verification (BYOG fix).
+            const brandId = items[0]?.brandId;
+
             const verifyRes = await apiClient.post('/checkout/verify', {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
+              brandId, // tells the backend whose Razorpay secret to use
               customerDetails: {
                 name: formData.name,
                 phone: formData.phone,

@@ -9,13 +9,15 @@ import {
   Package,
   Users,
   BarChart3,
-  Settings
+  Settings,
+  Wallet
 } from 'lucide-react';
 
 const routes = [
   { label: 'Overview', icon: LayoutDashboard, href: '/dashboard' },
   { label: 'Products', icon: ShoppingBag, href: '/products' },
   { label: 'Orders', icon: Package, href: '/orders' },
+  { label: 'Payments', icon: Wallet, href: '/payments' },
   { label: 'Customers', icon: Users, href: '/customers' },
   { label: 'Analytics', icon: BarChart3, href: '/analytics' },
   { label: 'Settings', icon: Settings, href: '/settings' },

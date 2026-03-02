@@ -99,13 +99,16 @@ export default function ProductsPage() {
                     {products.map((product) => (
                       <TableRow key={product.id}>
                         <TableCell>
-                          {product.images && product.images.length > 0 ? (
-                            <img src={product.images[0]} alt={product.name} className="h-10 w-10 rounded-md object-cover border bg-gray-50" />
-                          ) : (
-                            <div className="h-10 w-10 rounded-md bg-gray-100 flex items-center justify-center border text-gray-400">
-                              <ImageIcon className="h-5 w-5" />
-                            </div>
-                          )}
+                          {(() => {
+                            const fallbackImage = product.images?.[0] || product.variants?.find((v: any) => v.imageUrl)?.imageUrl;
+                            return fallbackImage ? (
+                              <img src={fallbackImage} alt={product.name} className="h-10 w-10 rounded-md object-cover border bg-gray-50" />
+                            ) : (
+                              <div className="h-10 w-10 rounded-md bg-gray-100 flex items-center justify-center border text-gray-400">
+                                <ImageIcon className="h-5 w-5" />
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="font-medium">
                           {product.name}
@@ -161,13 +164,16 @@ export default function ProductsPage() {
                     <div className="flex gap-4">
                       {/* Image */}
                       <div className="shrink-0">
-                        {product.images && product.images.length > 0 ? (
-                          <img src={product.images[0]} alt={product.name} className="h-20 w-20 rounded-lg object-cover border bg-gray-50" />
-                        ) : (
-                          <div className="h-20 w-20 rounded-lg bg-gray-100 flex items-center justify-center border text-gray-400">
-                            <ImageIcon className="h-8 w-8" />
-                          </div>
-                        )}
+                        {(() => {
+                          const fallbackImage = product.images?.[0] || product.variants?.find((v: any) => v.imageUrl)?.imageUrl;
+                          return fallbackImage ? (
+                            <img src={fallbackImage} alt={product.name} className="h-20 w-20 rounded-lg object-cover border bg-gray-50" />
+                          ) : (
+                            <div className="h-20 w-20 rounded-lg bg-gray-100 flex items-center justify-center border text-gray-400">
+                              <ImageIcon className="h-8 w-8" />
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Details */}

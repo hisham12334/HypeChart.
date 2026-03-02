@@ -18,21 +18,40 @@ export class ProductService {
   async createProduct(userId: string, data: any) {
     const slug = this.generateSlug(data.name);
 
+    let variantsToCreate: any[] = [];
+    const basePrice = Number(data.basePrice) || 0;
+
+    if (!data.isVariantMode || !data.variants || data.variants.length === 0) {
+      // Simple Journey: Hidden Default Variants using sizes
+      const sizes = data.sizes || { S: 0, M: 0, L: 0 };
+      variantsToCreate = [
+        { name: "Size S", price: basePrice, inventoryCount: sizes.S, imageUrl: data.images?.[0] || null },
+        { name: "Size M", price: basePrice, inventoryCount: sizes.M, imageUrl: data.images?.[0] || null },
+        { name: "Size L", price: basePrice, inventoryCount: sizes.L, imageUrl: data.images?.[0] || null }
+      ];
+    } else {
+      // Variant Journey: Use provided color variants and generate 3 size variants for each
+      for (const variant of data.variants) {
+        const sizes = variant.sizes || { S: 0, M: 0, L: 0 };
+        variantsToCreate.push(
+          { name: `${variant.name} - Size S`, price: basePrice, inventoryCount: sizes.S, imageUrl: variant.imageUrl || null },
+          { name: `${variant.name} - Size M`, price: basePrice, inventoryCount: sizes.M, imageUrl: variant.imageUrl || null },
+          { name: `${variant.name} - Size L`, price: basePrice, inventoryCount: sizes.L, imageUrl: variant.imageUrl || null }
+        );
+      }
+    }
+
     return prisma.product.create({
       data: {
         userId,
         name: data.name,
         description: data.description,
-        basePrice: data.basePrice,
+        basePrice: basePrice,
         images: data.images || [], // Array of URLs
         checkoutSlug: slug,
         productDropDate: data.productDropDate ? new Date(data.productDropDate) : null,
         variants: {
-          create: data.variants.map((v: any) => ({
-            name: v.name,
-            inventoryCount: v.inventoryCount,
-            priceAdjustment: v.priceAdjustment || 0
-          }))
+          create: variantsToCreate
         }
       },
       include: {
@@ -96,6 +115,8 @@ export class ProductService {
             where: { id: variant.id },
             data: {
               name: variant.name,
+              price: Number(variant.price) || 0,
+              imageUrl: variant.imageUrl || null,
               inventoryCount: parseInt(variant.inventoryCount),
               reservedCount: 0 // Reset reserved if needed, or keep logic simple
             }
@@ -106,6 +127,8 @@ export class ProductService {
             data: {
               productId: productId,
               name: variant.name,
+              price: Number(variant.price) || 0,
+              imageUrl: variant.imageUrl || null,
               inventoryCount: parseInt(variant.inventoryCount),
               reservedCount: 0
             }

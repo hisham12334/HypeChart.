@@ -4,18 +4,26 @@ import { z } from 'zod';
 
 const productService = new ProductService();
 
+const sizeStockSchema = z.object({
+  S: z.coerce.number().int().min(0).default(0),
+  M: z.coerce.number().int().min(0).default(0),
+  L: z.coerce.number().int().min(0).default(0)
+});
+
 // Validation Schema
 const createProductSchema = z.object({
   name: z.string().min(3, "Product name must be at least 3 characters"),
   description: z.string().optional(),
-  basePrice: z.number().positive("Base price must be positive"),
+  basePrice: z.coerce.number().min(0, "Base price must be 0 or greater"),
   images: z.array(z.string().url("Invalid image URL")).optional().default([]),
   productDropDate: z.string().optional(), // ISO Date string
+  isVariantMode: z.boolean().optional().default(false),
+  sizes: sizeStockSchema.optional(),
   variants: z.array(z.object({
     name: z.string().min(1, "Variant name is required"),
-    inventoryCount: z.number().int().min(0, "Inventory count must be 0 or greater"),
-    priceAdjustment: z.number().optional().default(0)
-  })).min(1, "At least one variant is required")
+    sizes: sizeStockSchema,
+    imageUrl: z.string().nullish().or(z.literal(''))
+  })).optional().default([])
 });
 
 export class ProductController {

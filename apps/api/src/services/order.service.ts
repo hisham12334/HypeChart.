@@ -1,4 +1,9 @@
 import { PrismaClient } from '@brand-order-system/database';
+import {
+    sendWhatsAppMessage,
+    getOrderTemplate,
+} from './whatsapp.service';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -25,7 +30,7 @@ interface OrderCreationData {
 }
 
 export const createOrderWithIdempotency = async (data: OrderCreationData, idempotencyKey: string) => {
-    return await prisma.$transaction(async (tx) => {
+    const txResult = await prisma.$transaction(async (tx) => {
         // 1. ATOMIC CHECK: Try to create the Idempotency Key record immediately.
         // If this fails (Unique Constraint Violation), it means it's already being processed.
         const existingKey = await tx.idempotencyKey.findUnique({
@@ -136,8 +141,15 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
 
         // D. Create Financial Transaction Ledger
         const grossAmount = parseFloat(customerDetails.amount);
-        const platformFee = (grossAmount * feePercent) / 100;
-        const netAmount = grossAmount - platformFee;
+        // ── Fee split ───────────────────────────────────────────────────
+        // Razorpay always deducts 2% before settling to the platform.
+        // Platform fee (Hypechart cut) = feePercent (0.7% by default).
+        // Brand receives: gross − razorpay_fee − platform_fee
+        const RAZORPAY_FEE_PERCENT = 2;
+        const razorpayFee = parseFloat(((grossAmount * RAZORPAY_FEE_PERCENT) / 100).toFixed(2));
+        const platformFee = parseFloat(((grossAmount * feePercent) / 100).toFixed(2));
+        const netAmount = parseFloat((grossAmount - razorpayFee - platformFee).toFixed(2));
+        // ────────────────────────────────────────────────────────────────
 
         await tx.transaction.create({
             data: {
@@ -145,6 +157,7 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
                 razorpayOrderId: razorpayOrderId,
                 razorpayPaymentId: razorpayPaymentId,
                 grossAmount: grossAmount,
+                razorpayFee: razorpayFee,
                 platformFee: platformFee,
                 netAmount: netAmount,
                 status: "CAPTURED"
@@ -196,4 +209,72 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
 
         return responsePayload;
     });
+
+    // G. Send WhatsApp "Order Placed" notification (outside transaction so WA failure never rolls back the order)
+    // Only send for freshly-created orders, not idempotent replays
+    const isNewOrder = txResult && (txResult as any).success === true;
+    try {
+        if (isNewOrder) {
+            const brandRows = await prisma.$queryRawUnsafe<any[]>(
+                `SELECT "whatsappPhoneNumberId", "whatsappToken", "whatsappEnabled", "brandName"
+                 FROM "User" WHERE id = $1`,
+                data.merchantUserId
+            );
+            const brand = brandRows[0];
+
+            if (
+                brand?.whatsappEnabled === true &&
+                brand?.whatsappPhoneNumberId &&
+                brand?.whatsappToken &&
+                data.customerDetails.phone
+            ) {
+                const itemList = data.orderItems.map((item: any) => {
+                    const v = data.variants.find((vv: any) => vv.id === item.variantId);
+                    return {
+                        productName: v?.product?.name || 'Item',
+                        variantName: v?.name || '',
+                        quantity: item.quantity,
+                    };
+                });
+
+                // Fetch the order number we just created
+                const createdOrder = await prisma.order.findUnique({
+                    where: { id: data.internalOrderId },
+                    select: { orderNumber: true }
+                });
+
+                const template = getOrderTemplate(
+                    'order_placed',
+                    data.customerDetails.name,
+                    createdOrder?.orderNumber || data.internalOrderId,
+                    brand.brandName || 'Our Store'
+                );
+
+                if (template) {
+                    const waResult = await sendWhatsAppMessage(
+                        brand.whatsappPhoneNumberId,
+                        brand.whatsappToken,
+                        data.customerDetails.phone,
+                        template.templateName,
+                        template.parameters
+                    );
+
+                    logger.info('Order placed WA notification result', {
+                        orderId: data.internalOrderId,
+                        waSuccess: waResult.success,
+                        waMessageId: waResult.messageId,
+                        waError: waResult.error,
+                    });
+                }
+            }
+        }
+    } catch (waError: any) {
+        logger.error('Failed to send order_placed WhatsApp notification', {
+            orderId: data.internalOrderId,
+            error: waError.message,
+        });
+        // Intentionally not re-throwing — WA failure must not break order creation
+    }
+
+    return txResult;
 };

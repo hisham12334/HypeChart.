@@ -23,10 +23,24 @@ model User {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // --- 🔪 SURGERY: PAYMENT ROUTING FIELDS ---
+  plan                    String  @default("STARTER") // "STARTER" | "PRO"
+  razorpayKeyId           String? // For Pro: BYOG
+  razorpayKeySecret       String? // For Pro: BYOG
+  razorpayLinkedAccountId String? // For Starter: Route/Linked Accounts
+  // ------------------------------------------
+
+  // --- 📱 WHATSAPP BUSINESS API FIELDS ---
+  whatsappPhoneNumberId   String?  // Meta Phone Number ID
+  whatsappToken           String?  // Meta Permanent Access Token
+  whatsappEnabled         Boolean  @default(false)
+  // ----------------------------------------
   
   // Relations
   products     Product[]
   transactions Transaction[]
+  payouts      Payout[]
   customers    Customer[]
   orders       Order[]
 }
@@ -58,6 +72,8 @@ model Variant {
   inventoryCount  Int     @default(0)
   reservedCount   Int     @default(0)
   priceAdjustment Decimal @default(0)
+  price           Decimal @default(0) // ADDED: Directly store the price
+  imageUrl        String? // ADDED: Specific image for the variant
 
   productId       String
   product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -66,24 +82,60 @@ model Variant {
   cartReservations CartReservation[] 
 }
 
-// --- 4. THE MONEY LEDGER (New) ---
+// --- 4. THE MONEY LEDGER ---
 model Transaction {
-  id                String   @id @default(uuid())
-  
-  userId            String
-  user              User     @relation(fields: [userId], references: [id])
-  
-  // Audit Trail
-  razorpayOrderId   String   @unique
-  razorpayPaymentId String?
-  
-  // The Math
-  grossAmount       Float
-  platformFee       Float
-  netAmount         Float
-  
-  status            String   @default("CAPTURED")
-  createdAt         DateTime @default(now())
+  id                   String   @id @default(uuid())
+
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id])
+
+  orderId              String?
+  order                Order?   @relation(fields: [orderId], references: [id])
+
+  // Razorpay Audit Trail
+  razorpayOrderId      String   @unique
+  razorpayPaymentId    String?
+  razorpaySettlementId String?
+
+  // The Math (Decimal — never Float for money)
+  grossAmount          Decimal
+  platformFee          Decimal
+  razorpayFee          Decimal  @default(0)
+  netAmount            Decimal
+
+  // State machine: CAPTURED | SETTLED | PAID_OUT | REFUNDED
+  status               String   @default("CAPTURED")
+
+  // Settlement Timeline
+  settlementEta        DateTime?
+  capturedAt           DateTime @default(now())
+  settledAt            DateTime?
+  paidOutAt            DateTime?
+
+  // Payout linkage
+  payoutId             String?
+  payout               Payout?  @relation(fields: [payoutId], references: [id])
+
+  createdAt            DateTime @default(now())
+
+  @@index([userId, status]) // Fast balance calculations
+}
+
+// --- 4b. PAYOUT RECORD ---
+model Payout {
+  id               String   @id @default(uuid())
+
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+
+  amount           Decimal
+  status           String   // INITIATED | SUCCESS | FAILED
+  razorpayPayoutId String?
+
+  processedAt      DateTime?
+  createdAt        DateTime @default(now())
+
+  transactions     Transaction[]
 }
 
 // --- 5. CRM & ORDERS (Restored for Checkout) ---
@@ -153,6 +205,7 @@ model Order {
   paidAt          DateTime?
   
   items           OrderItem[]
+  transactions    Transaction[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, ArrowRight } from 'lucide-react';
 // import { toast } from 'sonner'; // Uncomment if you have sonner installed
@@ -13,9 +13,11 @@ interface Product {
     images: string[];
     variants: any[];
     user: {
+        id: string;
         brandName: string;
     };
     slug: string;
+    userId: string;
 }
 
 export default function ProductPage() {
@@ -27,6 +29,7 @@ export default function ProductPage() {
 
     const [product, setProduct] = useState<Product | null>(null);
     const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+    const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -37,13 +40,19 @@ export default function ProductPage() {
                 // Use the environment variable, falling back to localhost for local dev
                 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
                 const res = await fetch(`${API_URL}/store/product/${productIdOrSlug}`);
+
+                if (!res.ok) {
+                    console.error('Failed to fetch product:', res.status);
+                    setLoading(false);
+                    return;
+                }
+
                 const data = await res.json();
 
-                if (data.success) {
-                    setProduct(data.product);
-                }
+                // API returns product directly, not wrapped in { success, product }
+                setProduct(data);
             } catch (err) {
-                console.error(err);
+                console.error('Error fetching product:', err);
             } finally {
                 setLoading(false);
             }
@@ -51,6 +60,44 @@ export default function ProductPage() {
 
         if (productIdOrSlug) fetchProduct();
     }, [productIdOrSlug]);
+
+    // Group variants by style
+    const groups = useMemo(() => {
+        if (!product) return [];
+        const groupMap = new Map<string, any>();
+
+        product.variants.forEach(v => {
+            let groupName = "Default";
+            let sizeName = v.name;
+
+            if (v.name.includes(' - Size ')) {
+                const parts = v.name.split(' - Size ');
+                groupName = parts[0];
+                sizeName = parts[1];
+            } else if (v.name.startsWith('Size ')) {
+                sizeName = v.name.replace('Size ', '');
+            }
+
+            if (!groupMap.has(groupName)) {
+                groupMap.set(groupName, {
+                    name: groupName,
+                    imageUrl: v.imageUrl || (product.images && product.images.length > 0 ? product.images[0] : null),
+                    variants: []
+                });
+            }
+            groupMap.get(groupName).variants.push({ ...v, displaySize: sizeName });
+        });
+
+        return Array.from(groupMap.values());
+    }, [product]);
+
+    useEffect(() => {
+        if (groups.length > 0 && !selectedGroupName) {
+            setSelectedGroupName(groups[0].name);
+        }
+    }, [groups, selectedGroupName]);
+
+    const currentGroup = groups.find(g => g.name === selectedGroupName) || groups[0];
 
     // Helper to get selected variant details
     const getSelectedVariantData = () => {
@@ -80,9 +127,10 @@ export default function ProductPage() {
             variantId: selectedVariant,
             name: product.name,
             price: product.basePrice,
-            image: product.images[0],
+            image: variantData.imageUrl || (product.images && product.images.length > 0 ? product.images[0] : ''),
             quantity: 1,
             brandName: product.user.brandName,
+            brandId: product.userId || product.user?.id, // Pass brandId so verify endpoint can use the brand's Razorpay keys
             slug: product.slug,
             variantName: product.variants.find((v: any) => v.id === selectedVariant)?.name || 'Standard'
         };
@@ -128,14 +176,18 @@ export default function ProductPage() {
 
                     {/* Left: Images */}
                     <div className="space-y-4">
-                        <div className="relative aspect-[3/4] bg-neutral-100 rounded-sm overflow-hidden">
-                            <img src={product.images[activeImageIndex] || ""} alt={product.name} className="w-full h-full object-cover" />
+                        <div className="relative aspect-[3/4] bg-neutral-100 rounded-sm overflow-hidden flex items-center justify-center">
+                            {(product.images && product.images[activeImageIndex]) || currentGroup?.imageUrl ? (
+                                <img src={(product.images && product.images[activeImageIndex]) || currentGroup?.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="text-neutral-400 font-medium">No Image Available</div>
+                            )}
                         </div>
                         {/* Thumbnails */}
-                        {product.images.length > 1 && (
+                        {product.images && product.images.length > 1 && (
                             <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
                                 {product.images.map((img: string, idx: number) => (
-                                    <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-20 h-24 border ${activeImageIndex === idx ? 'border-black' : 'border-transparent'}`}>
+                                    <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-20 h-24 border shrink-0 ${activeImageIndex === idx ? 'border-black' : 'border-transparent'}`}>
                                         <img src={img} className="w-full h-full object-cover" />
                                     </button>
                                 ))}
@@ -149,10 +201,37 @@ export default function ProductPage() {
                         <p className="text-2xl font-light mb-8">₹{product.basePrice}</p>
                         <div className="text-neutral-600 mb-10" dangerouslySetInnerHTML={{ __html: product.description }} />
 
+                        {/* Style Selector */}
+                        {groups.length > 1 && (
+                            <div className="mb-8">
+                                <h3 className="text-sm font-bold uppercase tracking-widest mb-4">Select Style</h3>
+                                <div className="flex gap-4 flex-wrap">
+                                    {groups.map((group: any) => (
+                                        <button
+                                            key={group.name}
+                                            onClick={() => {
+                                                setSelectedGroupName(group.name);
+                                                setSelectedVariant(null);
+                                            }}
+                                            className={`flex flex-col items-center justify-between gap-2 p-1 border rounded-md transition-all ${selectedGroupName === group.name ? 'border-black ring-1 ring-black shadow-md' : 'border-transparent hover:border-gray-300'}`}
+                                            title={group.name}
+                                        >
+                                            {group.imageUrl ? (
+                                                <img src={group.imageUrl} alt={group.name} className="w-16 h-16 object-cover rounded-sm border border-gray-100" />
+                                            ) : (
+                                                <div className="w-16 h-16 bg-gray-200 rounded-sm border border-gray-100 flex items-center justify-center text-xs text-gray-500">Img</div>
+                                            )}
+                                            <span className="text-xs font-semibold px-2">{group.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Size Selector */}
                         <h3 className="text-sm font-bold uppercase tracking-widest mb-4">Select Size</h3>
                         <div className="flex gap-3 flex-wrap mb-12">
-                            {product.variants.map((variant: any) => {
+                            {currentGroup?.variants.map((variant: any) => {
                                 const isOutOfStock = variant.availableCount <= 0;
                                 return (
                                     <button
@@ -166,7 +245,7 @@ export default function ProductPage() {
                                                 : 'bg-white text-black border-neutral-200 hover:border-black'
                                             }`}
                                     >
-                                        {variant.name}
+                                        {variant.displaySize}
                                         {isOutOfStock && (
                                             <span className="block text-[0.6rem] absolute -bottom-2 left-0 right-0 text-center text-red-500 font-bold tracking-widest uppercase">
                                                 Sold Out

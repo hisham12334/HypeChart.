@@ -2,10 +2,11 @@ import { Request, Response } from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { PrismaClient } from '@brand-order-system/database';
+import { decrypt, isEncrypted } from '../utils/crypto.util';
 
 const prisma = new PrismaClient();
 
-// Initialize Razorpay
+// Initialize Default Platform Razorpay
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID || '',
     key_secret: process.env.RAZORPAY_KEY_SECRET || '',
@@ -30,42 +31,88 @@ export class PaymentController {
                 return res.status(404).json({ success: false, error: "Product or Brand not found" });
             }
 
-            // --- FIX 1 (Line 38): Convert Decimal to Number ---
-            // Prisma decimals must be converted before doing math
-            const basePrice = Number(product.basePrice);
-            const amountInRupees = basePrice * quantity;
-            const amountInPaise = Math.round(amountInRupees * 100); // Math.round avoids floating point errors
+            const brand = product.user;
 
-            const PLATFORM_FEE_PERCENT = 5;
+            // --- FIX 1: Convert Decimal to Number ---
+            let effectivePrice = Number(product.basePrice);
 
-            // Create Razorpay Order
-            const options = {
+            // If buying a specific variant, use its absolute price or fallback to base + adjustment
+            if (variantId) {
+                const variant = await prisma.variant.findUnique({ where: { id: variantId } });
+                if (variant) {
+                    const variantPrice = Number(variant.price) || 0;
+                    const adjustment = Number(variant.priceAdjustment) || 0;
+                    effectivePrice = variantPrice > 0 ? variantPrice : (effectivePrice + adjustment);
+                }
+            }
+
+            const amountInRupees = effectivePrice * quantity;
+            const amountInPaise = Math.round(amountInRupees * 100);
+
+            let platformFeePercent = 0.7; // Default fallback — Hypechart platform cut
+
+            // Create Base Razorpay Order Options
+            const options: any = {
                 amount: amountInPaise,
                 currency: "INR",
                 receipt: `rcpt_${Date.now().toString().slice(-8)}`,
                 payment_capture: 1,
-
                 notes: {
                     brand_id: product.userId,
-                    // --- FIX 2 (Line 53): Handle Nullable Slug ---
-                    // We provide a fallback string if slug is missing
-                    brand_slug: product.user.slug || 'unknown-brand',
+                    // --- FIX 2: Handle Nullable Slug ---
+                    brand_slug: brand.slug || 'unknown-brand',
                     product_id: product.id,
                     product_name: product.name,
-                    platform_fee_percent: PLATFORM_FEE_PERCENT.toString(),
+                    platform_fee_percent: platformFeePercent.toString(),
                     type: "drop_purchase"
                 }
             };
 
-            const order = await razorpay.orders.create(options);
+            // --- 🔪 SURGERY PHASE 3: CHECKOUT ROUTING ---
+            let activeRazorpayInstance = razorpay;
+            let activeKeyId = process.env.RAZORPAY_KEY_ID;
+
+            if (brand.plan === "PRO" && brand.razorpayKeyId && brand.razorpayKeySecret) {
+                // 🚀 PRO TIER: Bring Your Own Gateway (0% Platform Fee)
+                activeRazorpayInstance = new Razorpay({
+                    key_id: brand.razorpayKeyId,
+                    key_secret: brand.razorpayKeySecret,
+                });
+                activeKeyId = brand.razorpayKeyId;
+                options.notes.platform_fee_percent = "0"; // Override fee to 0%
+            } else {
+                // 🏦 STARTER TIER: Route Split (3% Platform Fee)
+                platformFeePercent = 0.7;
+                options.notes.platform_fee_percent = platformFeePercent.toString();
+
+                if (brand.razorpayLinkedAccountId) {
+                    const brandSharePaise = Math.floor(amountInPaise * (1 - (platformFeePercent / 100)));
+                    options.transfers = [
+                        {
+                            account: brand.razorpayLinkedAccountId,
+                            amount: brandSharePaise,
+                            currency: "INR",
+                            notes: {
+                                brand_id: brand.id,
+                                platform_fee: `${platformFeePercent}%`
+                            },
+                            on_hold: false
+                        }
+                    ];
+                }
+            }
+            // --------------------------------------------
+
+            // Create Order using the dynamically selected instance
+            const order = await activeRazorpayInstance.orders.create(options);
 
             res.json({
                 success: true,
                 orderId: order.id,
                 amount: amountInPaise,
                 currency: "INR",
-                keyId: process.env.RAZORPAY_KEY_ID,
-                brandName: product.user.brandName
+                keyId: activeKeyId, // Send the correct Key ID to frontend checkout
+                brandName: brand.brandName
             });
 
         } catch (error: any) {
@@ -82,13 +129,35 @@ export class PaymentController {
             const {
                 razorpay_order_id,
                 razorpay_payment_id,
-                razorpay_signature
+                razorpay_signature,
+                brandId // 🔪 Required from frontend to determine routing
             } = req.body;
 
-            // Verify Signature
+            // --- 🔪 SURGERY PHASE 4: DYNAMIC VERIFICATION ---
+            let secretToUse = process.env.RAZORPAY_KEY_SECRET || '';
+            let activeRazorpayInstance = razorpay;
+
+            // If a brandId is provided, fetch it to check if they are PRO
+            if (brandId) {
+                const brand = await prisma.user.findUnique({ where: { id: brandId } });
+                if (brand?.plan === "PRO" && brand?.razorpayKeySecret && brand?.razorpayKeyId) {
+                    // Decrypt before using (stored as AES-256-GCM encrypted)
+                    const plainSecret = isEncrypted(brand.razorpayKeySecret)
+                        ? decrypt(brand.razorpayKeySecret)
+                        : brand.razorpayKeySecret; // Backwards compat for un-migrated rows
+                    secretToUse = plainSecret;
+                    activeRazorpayInstance = new Razorpay({
+                        key_id: brand.razorpayKeyId,
+                        key_secret: plainSecret
+                    });
+                }
+            }
+            // ------------------------------------------------
+
+            // Verify Signature using the dynamically selected secret
             const body = razorpay_order_id + "|" + razorpay_payment_id;
             const expectedSignature = crypto
-                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
+                .createHmac('sha256', secretToUse)
                 .update(body.toString())
                 .digest('hex');
 
@@ -96,42 +165,82 @@ export class PaymentController {
                 return res.status(400).json({ success: false, error: "Invalid Signature" });
             }
 
-            // Fetch Order to get the Notes
-            const orderInfo = await razorpay.orders.fetch(razorpay_order_id);
+            // Fetch Order Notes using the dynamically selected instance
+            const orderInfo = await activeRazorpayInstance.orders.fetch(razorpay_order_id);
 
             if (!orderInfo.notes) {
                 throw new Error("Order missing critical audit notes");
             }
 
-            // Parse Notes
             const type = orderInfo.notes?.type;
 
             // SPECIAL CASE: Subscription Activation
             if (type === 'subscription_activation') {
                 console.log(`✅ Subscription Payment Verified: ${razorpay_order_id}`);
+
+                const subscribingUserId = orderInfo.notes?.userId as string;
+                if (subscribingUserId && subscribingUserId !== 'unknown') {
+                    // Automatically upgrade user to PRO
+                    await prisma.user.update({
+                        where: { id: subscribingUserId },
+                        data: { plan: "PRO" }
+                    });
+                    console.log(`🚀 Upgraded User ${subscribingUserId} to PRO`);
+                } else {
+                    console.warn(`⚠️ Subscription paid, but no userId found in order notes! order: ${razorpay_order_id}`);
+                }
+
                 return res.json({ success: true, message: "Subscription verified" });
             }
 
-            // We force 'as string' because we know we saved them as strings earlier
-            const brandId = orderInfo.notes.brand_id as string;
+            const resolvedBrandId = orderInfo.notes?.brand_id as string;
+
+            if (!resolvedBrandId) {
+                throw new Error("Security Error: Razorpay order is missing the securely bound brand_id in its notes.");
+            }
+
             const grossAmount = Number(orderInfo.amount) / 100;
-            const feePercent = Number(orderInfo.notes.platform_fee_percent) || 5;
+            const feePercent = Number(orderInfo.notes?.platform_fee_percent) || 0.7;
 
-            // Calculate Split
-            const platformFee = (grossAmount * feePercent) / 100;
-            const netAmount = grossAmount - platformFee;
+            // ── Fee split ───────────────────────────────────────────────────
+            // Razorpay always deducts 2% from gross before settling to us.
+            // Platform fee (Hypechart cut) is 0.7% of gross.
+            // Brand receives: gross − razorpay_fee − platform_fee
+            const RAZORPAY_FEE_PERCENT = 2;
+            const razorpayFee = parseFloat(((grossAmount * RAZORPAY_FEE_PERCENT) / 100).toFixed(2));
+            const platformFee = parseFloat(((grossAmount * feePercent) / 100).toFixed(2));
+            const netAmount = parseFloat((grossAmount - razorpayFee - platformFee).toFixed(2));
+            // ────────────────────────────────────────────────────────────────
 
-            // --- FIX 3 (Line 122): Ensure 'npx prisma generate' was run ---
-            await prisma.transaction.create({
-                data: {
-                    userId: brandId,
+            // settlementEta = capturedAt + 3 calendar days
+            // (cron job will overwrite with actual date once settlement arrives)
+            const capturedAt = new Date();
+            const settlementEta = new Date(capturedAt);
+            settlementEta.setDate(settlementEta.getDate() + 3);
+
+            // Look up the DB Order by razorpay order ID to link it
+            const order = await prisma.order.findUnique({
+                where: { razorpayOrderId: razorpay_order_id },
+                select: { id: true },
+            });
+
+            // --- Record transaction with enriched fields ---
+            await prisma.transaction.upsert({
+                where: { razorpayOrderId: razorpay_order_id },
+                update: {
+                    razorpayPaymentId: razorpay_payment_id,
+                    status: 'CAPTURED',
+                },
+                create: {
+                    userId: resolvedBrandId,
                     razorpayOrderId: razorpay_order_id,
                     razorpayPaymentId: razorpay_payment_id,
                     grossAmount: grossAmount,
+                    razorpayFee: razorpayFee,
                     platformFee: platformFee,
                     netAmount: netAmount,
-                    status: "CAPTURED"
-                }
+                    status: 'CAPTURED',
+                },
             });
 
             res.json({ success: true, message: "Payment verified and ledger updated" });
@@ -147,17 +256,19 @@ export class PaymentController {
     // ---------------------------------------------------------
     async createSubscriptionOrder(req: Request, res: Response) {
         try {
+            const { userId } = req.body || {};
             const amountInRupees = 700;
             const amountInPaise = amountInRupees * 100;
 
             const options = {
-                amount: amountInRupees * 100, // Fixed: use calculated paise or just * 100
+                amount: amountInPaise,
                 currency: "INR",
                 receipt: `sub_${Date.now().toString().slice(-8)}`,
                 payment_capture: 1,
                 notes: {
                     type: "subscription_activation",
-                    description: "Hypechart Pro Monthly"
+                    description: "Hypechart Pro Monthly",
+                    userId: userId || "unknown" // SECURITY FIX: Track who is actually purchasing
                 }
             };
 

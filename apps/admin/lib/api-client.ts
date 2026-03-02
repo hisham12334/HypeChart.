@@ -44,4 +44,45 @@ apiClient.interceptors.response.use(
   }
 );
 
+// --- PAYMENT SETTINGS ---
+export const paymentSettingsApi = {
+  // 🏦 For Starter Tier: Route Setup
+  connectBank: async (data: {
+    accountName: string;
+    email: string;
+    beneficiaryName: string;
+    accountNumber: string;
+    ifscCode: string;
+  }) => {
+    const res = await apiClient.post('/store/connect-bank', data);
+    return res.data;
+  },
+
+  // 🚀 For Pro Tier: BYOG Setup
+  saveApiKeys: async (data: { keyId: string; keySecret: string }) => {
+    const res = await apiClient.post('/store/save-keys', data);
+    return res.data;
+  },
+};
+
+// --- WHATSAPP SETTINGS ---
+export const whatsappSettingsApi = {
+  get: async () => {
+    const res = await apiClient.get('/store/whatsapp-settings');
+    return res.data;
+  },
+  save: async (data: { phoneNumberId: string; token: string; enabled: boolean }) => {
+    const res = await apiClient.post('/store/whatsapp-settings', data);
+    return res.data;
+  },
+};
+
+// --- ORDERS ---
+export const ordersApi = {
+  updateStatus: async (orderId: string, status: string) => {
+    const res = await apiClient.patch(`/orders/${orderId}/status`, { status });
+    return res.data;
+  },
+};
+
 export { apiClient };
