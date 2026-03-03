@@ -7,16 +7,15 @@ import {
     LayoutDashboard,
     ShoppingBag,
     Package,
-    Users,
-    BarChart3,
-    Settings
+    Wallet,
+    BarChart3
 } from 'lucide-react';
 
 const routes = [
     { label: 'Home', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Products', icon: ShoppingBag, href: '/products' },
     { label: 'Orders', icon: Package, href: '/orders' },
-    { label: 'CRM', icon: Users, href: '/customers' },
+    { label: 'Payments', icon: Wallet, href: '/payments' },
     { label: 'Stats', icon: BarChart3, href: '/analytics' },
 ];
 

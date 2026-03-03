@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   ShoppingBag,
   Package,
-  Users,
   BarChart3,
   Settings,
   Wallet
@@ -18,7 +17,6 @@ const routes = [
   { label: 'Products', icon: ShoppingBag, href: '/products' },
   { label: 'Orders', icon: Package, href: '/orders' },
   { label: 'Payments', icon: Wallet, href: '/payments' },
-  { label: 'Customers', icon: Users, href: '/customers' },
   { label: 'Analytics', icon: BarChart3, href: '/analytics' },
   { label: 'Settings', icon: Settings, href: '/settings' },
 ];
