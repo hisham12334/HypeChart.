@@ -17,4 +17,7 @@ router.get('/transactions', (req, res) => controller.getTransactions(req, res));
 // POST /api/payments/payout
 router.post('/payout', (req, res) => controller.createPayout(req, res));
 
+// POST /api/payments/sync-settlements
+router.post('/sync-settlements', (req, res) => controller.syncSettlements(req, res));
+
 export default router;

@@ -1,7 +1,7 @@
 /**
  * Settlement Sync Cron Job
  *
- * Runs every night at 2AM.
+ * Runs every 6 hours (at 2AM, 8AM, 2PM, 8PM).
  * Polls Razorpay Settlements API, matches by razorpayPaymentId (NOT orderId — 
  * Razorpay entity_id in settlements maps to payment_id).
  * Updates matched Transaction rows: status=SETTLED, settledAt, razorpaySettlementId.
@@ -130,10 +130,11 @@ export async function runSettlementSync(): Promise<void> {
 }
 
 /**
- * Schedules the job at 2AM every night.
+ * Schedules the job to run every 6 hours (at 2AM, 8AM, 2PM, 8PM).
  */
 export const startSettlementSyncJob = (): void => {
-    cron.schedule('0 2 * * *', () => {
+    // Run every 6 hours: 0 */6 * * * (at minute 0 of every 6th hour)
+    cron.schedule('0 */6 * * *', () => {
         runSettlementSync().catch((err) => {
             logger.error('Settlement Sync: Uncaught error in cron handler', {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -141,5 +142,5 @@ export const startSettlementSyncJob = (): void => {
         });
     });
 
-    logger.info('⏰ Settlement Sync Job scheduled (2AM daily)');
+    logger.info('⏰ Settlement Sync Job scheduled (every 6 hours)');
 };

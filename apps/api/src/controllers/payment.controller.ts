@@ -3,6 +3,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { PrismaClient } from '@brand-order-system/database';
 import { decrypt, isEncrypted } from '../utils/crypto.util';
+import { calculateSettlementEta } from '../utils/date.util';
 
 const prisma = new PrismaClient();
 
@@ -212,11 +213,10 @@ export class PaymentController {
             const netAmount = parseFloat((grossAmount - razorpayFee - platformFee).toFixed(2));
             // ────────────────────────────────────────────────────────────────
 
-            // settlementEta = capturedAt + 3 calendar days
+            // settlementEta = capturedAt + 2 business days (excluding weekends)
             // (cron job will overwrite with actual date once settlement arrives)
             const capturedAt = new Date();
-            const settlementEta = new Date(capturedAt);
-            settlementEta.setDate(settlementEta.getDate() + 3);
+            const settlementEta = calculateSettlementEta(capturedAt);
 
             // Look up the DB Order by razorpay order ID to link it
             const order = await prisma.order.findUnique({
@@ -240,6 +240,8 @@ export class PaymentController {
                     platformFee: platformFee,
                     netAmount: netAmount,
                     status: 'CAPTURED',
+                    capturedAt: capturedAt,
+                    settlementEta: settlementEta,
                 },
             });
 

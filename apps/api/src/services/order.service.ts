@@ -4,6 +4,7 @@ import {
     getOrderTemplate,
 } from './whatsapp.service';
 import { logger } from '../utils/logger';
+import { calculateSettlementEta } from '../utils/date.util';
 
 const prisma = new PrismaClient();
 
@@ -149,6 +150,10 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
         const razorpayFee = parseFloat(((grossAmount * RAZORPAY_FEE_PERCENT) / 100).toFixed(2));
         const platformFee = parseFloat(((grossAmount * feePercent) / 100).toFixed(2));
         const netAmount = parseFloat((grossAmount - razorpayFee - platformFee).toFixed(2));
+        
+        // Calculate settlement ETA (T+2 business days, excluding weekends)
+        const capturedAt = new Date();
+        const settlementEta = calculateSettlementEta(capturedAt);
         // ────────────────────────────────────────────────────────────────
 
         await tx.transaction.create({
@@ -160,7 +165,9 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
                 razorpayFee: razorpayFee,
                 platformFee: platformFee,
                 netAmount: netAmount,
-                status: "CAPTURED"
+                status: "CAPTURED",
+                capturedAt: capturedAt,
+                settlementEta: settlementEta,
             }
         });
 

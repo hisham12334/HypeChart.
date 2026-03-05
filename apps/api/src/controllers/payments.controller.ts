@@ -4,11 +4,13 @@
  * GET  /api/payments/balance      — returns processing/available/paidOut balances
  * GET  /api/payments/transactions — paginated transaction list with order info
  * POST /api/payments/payout       — creates a Payout and marks SETTLED txns as PAID_OUT
+ * POST /api/payments/sync-settlements — manually trigger settlement sync from Razorpay
  */
 
 import { Request, Response } from 'express';
 import { PrismaClient } from '@brand-order-system/database';
 import { logger } from '../utils/logger';
+import { runSettlementSync } from '../jobs/settlement-sync.job';
 
 const prisma = new PrismaClient();
 
@@ -231,6 +233,36 @@ export class PaymentsController {
                 stack: error instanceof Error ? error.stack : undefined,
             });
             res.status(500).json({ success: false, error: 'Payout creation failed' });
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/payments/sync-settlements
+    // Manually trigger settlement sync from Razorpay (useful for testing/debugging)
+    // -------------------------------------------------------------------------
+    async syncSettlements(req: Request, res: Response): Promise<void> {
+        try {
+            const userId = (req as any).user?.userId;
+            if (!userId) {
+                res.status(401).json({ success: false, error: 'Unauthorized' });
+                return;
+            }
+
+            logger.info('Manual settlement sync triggered', { userId });
+            
+            // Run the settlement sync job
+            await runSettlementSync();
+
+            res.json({
+                success: true,
+                message: 'Settlement sync completed. Check your transactions for updates.',
+            });
+        } catch (error) {
+            logger.error('PaymentsController.syncSettlements failed', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                stack: error instanceof Error ? error.stack : undefined,
+            });
+            res.status(500).json({ success: false, error: 'Settlement sync failed' });
         }
     }
 }

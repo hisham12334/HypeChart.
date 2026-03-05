@@ -311,6 +311,7 @@ export default function PaymentsPage() {
     const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
     const [loading, setLoading] = useState(true);
     const [payoutLoading, setPayoutLoading] = useState(false);
+    const [syncLoading, setSyncLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Use native fetch to bypass the global axios 401-logout interceptor.
@@ -385,6 +386,34 @@ export default function PaymentsPage() {
         }
     }
 
+    async function handleSyncSettlements() {
+        setSyncLoading(true);
+        try {
+            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+            const base = process.env.NEXT_PUBLIC_API_URL ?? '';
+            const res = await fetch(`${base}/payments/sync-settlements`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({}),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data?.error ?? 'Settlement sync failed. Please try again.');
+                return;
+            }
+            // Refresh data after sync
+            await fetchData(meta.page);
+            alert('Settlement sync completed successfully!');
+        } catch {
+            alert('Network error — settlement sync failed.');
+        } finally {
+            setSyncLoading(false);
+        }
+    }
+
     // ── LOADING ──
     if (loading) {
         return (
@@ -442,18 +471,29 @@ export default function PaymentsPage() {
                             Your real-time settlement ledger
                         </p>
                     </div>
-                    <button
-                        onClick={handlePayout}
-                        disabled={payoutLoading || (balance?.available ?? 0) === 0}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition"
-                    >
-                        {payoutLoading ? (
-                            <RefreshCcw className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <ArrowUpRight className="w-4 h-4" />
-                        )}
-                        Request Payout
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleSyncSettlements}
+                            disabled={syncLoading}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition"
+                            title="Sync settlements from Razorpay"
+                        >
+                            <RefreshCcw className={`w-4 h-4 ${syncLoading ? 'animate-spin' : ''}`} />
+                            Sync
+                        </button>
+                        <button
+                            onClick={handlePayout}
+                            disabled={payoutLoading || (balance?.available ?? 0) === 0}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold transition"
+                        >
+                            {payoutLoading ? (
+                                <RefreshCcw className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <ArrowUpRight className="w-4 h-4" />
+                            )}
+                            Request Payout
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── SUMMARY CARDS ── */}
