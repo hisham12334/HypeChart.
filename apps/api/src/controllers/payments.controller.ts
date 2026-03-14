@@ -1,10 +1,11 @@
 /**
  * Payments Controller
  *
- * GET  /api/payments/balance      — returns processing/available/paidOut balances
- * GET  /api/payments/transactions — paginated transaction list with order info
- * POST /api/payments/payout       — creates a Payout and marks SETTLED txns as PAID_OUT
- * POST /api/payments/sync-settlements — manually trigger settlement sync from Razorpay
+ * GET  /api/payments/balance           — returns processing/available/paidOut balances
+ * GET  /api/payments/transactions      — paginated transaction list with order info
+ * POST /api/payments/payout            — creates a Payout and marks SETTLED txns as PAID_OUT
+ * POST /api/payments/sync-settlements  — manually trigger settlement sync from Razorpay
+ * POST /api/payments/confirm-payout    — brand owner manually confirms payout received in bank
  */
 
 import { Request, Response } from 'express';
@@ -238,7 +239,12 @@ export class PaymentsController {
 
     // -------------------------------------------------------------------------
     // POST /api/payments/sync-settlements
-    // Manually trigger settlement sync from Razorpay (useful for testing/debugging)
+    // Step 1 — calls Razorpay's Settlement Recon API (the correct endpoint that
+    //           maps payments to settlements). Marks matched CAPTURED txns → SETTLED.
+    // Step 2 — ETA safety net: any CAPTURED transactions whose estimated T+3
+    //           settlement date has already passed get marked SETTLED too.
+    //           This catches anything the Recon API misses (e.g. very recent
+    //           settlements not yet indexed, or API rate limiting).
     // -------------------------------------------------------------------------
     async syncSettlements(req: Request, res: Response): Promise<void> {
         try {
@@ -249,13 +255,57 @@ export class PaymentsController {
             }
 
             logger.info('Manual settlement sync triggered', { userId });
-            
-            // Run the settlement sync job
-            await runSettlementSync();
+
+            // ── Step 1: Razorpay Settlement Recon API ─────────────────────────
+            // runSettlementSync now uses fetchRecon (the correct endpoint).
+            // It throws on real API errors so we can surface them.
+            let reconError: string | null = null;
+            try {
+                await runSettlementSync();
+            } catch (err) {
+                reconError = err instanceof Error ? err.message : 'Razorpay API error';
+                logger.warn('Settlement Sync: Recon API step failed, continuing with ETA fallback', { reconError });
+            }
+
+            // ── Step 2: ETA safety-net fallback ─────────────────────────────
+            // Settle any remaining CAPTURED transactions whose estimated T+3
+            // settlement date has already passed. The Recon step above will have
+            // already matched most via payment ID; this catches the rest.
+            const now = new Date();
+            const overdueTxns = await prisma.transaction.findMany({
+                where: {
+                    userId,
+                    status: 'CAPTURED',
+                    settlementEta: { lte: now },
+                },
+            });
+
+            let etaSettled = 0;
+            if (overdueTxns.length > 0) {
+                await prisma.transaction.updateMany({
+                    where: {
+                        id: { in: overdueTxns.map((t) => t.id) },
+                        status: 'CAPTURED',
+                    },
+                    data: {
+                        status: 'SETTLED',
+                        settledAt: now,
+                    },
+                });
+                etaSettled = overdueTxns.length;
+                logger.info(`Settlement Sync: ETA fallback settled ${etaSettled} transactions for user ${userId}`);
+            }
+
+            const parts: string[] = [];
+            if (etaSettled > 0) parts.push(`${etaSettled} moved to Available`);
+            if (parts.length === 0) parts.push('No new settlements found');
+            if (reconError) parts.push(`(Razorpay API: ${reconError})`);
 
             res.json({
                 success: true,
-                message: 'Settlement sync completed. Check your transactions for updates.',
+                message: `Sync complete — ${parts.join('. ')}.`,
+                etaSettled,
+                reconError,
             });
         } catch (error) {
             logger.error('PaymentsController.syncSettlements failed', {
@@ -263,6 +313,128 @@ export class PaymentsController {
                 stack: error instanceof Error ? error.stack : undefined,
             });
             res.status(500).json({ success: false, error: 'Settlement sync failed' });
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/payments/confirm-payout
+    // Brand owner manually confirms that a payout has been received in their bank.
+    // Body: { payoutId: string }
+    //
+    // This is needed because platform payouts are done manually by the platform
+    // owner — the system cannot auto-detect when money hits the brand's bank.
+    // Only the brand owner knows this, and they self-report it here.
+    // -------------------------------------------------------------------------
+    async confirmPayoutReceived(req: Request, res: Response): Promise<void> {
+        try {
+            const userId = (req as any).user?.userId;
+            if (!userId) {
+                res.status(401).json({ success: false, error: 'Unauthorized' });
+                return;
+            }
+
+            const { payoutId } = req.body;
+            if (!payoutId) {
+                res.status(400).json({ success: false, error: 'payoutId is required' });
+                return;
+            }
+
+            // Verify the payout belongs to this user
+            const payout = await prisma.payout.findFirst({
+                where: { id: payoutId, userId },
+                include: { transactions: true },
+            });
+
+            if (!payout) {
+                res.status(404).json({ success: false, error: 'Payout not found' });
+                return;
+            }
+
+            if (payout.status === 'CONFIRMED') {
+                res.status(400).json({ success: false, error: 'Payout already confirmed' });
+                return;
+            }
+
+            const now = new Date();
+
+            // Mark payout as CONFIRMED and stamp confirmedAt
+            await prisma.$transaction(async (tx) => {
+                await tx.payout.update({
+                    where: { id: payoutId },
+                    data: {
+                        status: 'CONFIRMED',
+                        processedAt: now,
+                    },
+                });
+
+                // Also update all linked transactions to have paidOutAt confirmed
+                if (payout.transactions.length > 0) {
+                    await tx.transaction.updateMany({
+                        where: {
+                            payoutId,
+                            userId,
+                        },
+                        data: {
+                            paidOutAt: now,
+                        },
+                    });
+                }
+            });
+
+            logger.info('Payout confirmed by brand owner', { payoutId, userId, amount: payout.amount });
+
+            res.json({
+                success: true,
+                message: 'Payout confirmed successfully. Your ledger has been updated.',
+                data: { payoutId, confirmedAt: now },
+            });
+        } catch (error) {
+            logger.error('PaymentsController.confirmPayoutReceived failed', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                stack: error instanceof Error ? error.stack : undefined,
+            });
+            res.status(500).json({ success: false, error: 'Failed to confirm payout' });
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /api/payments/payouts
+    // Returns a list of all payouts for the current user with their status.
+    // -------------------------------------------------------------------------
+    async getPayouts(req: Request, res: Response): Promise<void> {
+        try {
+            const userId = (req as any).user?.userId;
+            if (!userId) {
+                res.status(401).json({ success: false, error: 'Unauthorized' });
+                return;
+            }
+
+            const payouts = await prisma.payout.findMany({
+                where: { userId },
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    transactions: {
+                        select: { id: true, grossAmount: true, netAmount: true, capturedAt: true },
+                    },
+                },
+            });
+
+            res.json({
+                success: true,
+                data: payouts.map((p) => ({
+                    id: p.id,
+                    amount: Number(p.amount),
+                    status: p.status,
+                    transactionCount: p.transactions.length,
+                    createdAt: p.createdAt,
+                    processedAt: p.processedAt,
+                })),
+            });
+        } catch (error) {
+            logger.error('PaymentsController.getPayouts failed', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            res.status(500).json({ success: false, error: 'Failed to fetch payouts' });
         }
     }
 }
