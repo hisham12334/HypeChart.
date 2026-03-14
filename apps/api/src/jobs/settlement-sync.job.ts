@@ -3,21 +3,20 @@
  *
  * Runs every 6 hours (at 2AM, 8AM, 2PM, 8PM).
  *
- * HOW RAZORPAY SETTLEMENTS ACTUALLY WORK:
+ * SDK REALITY (razorpay ^2.9.6):
  * ─────────────────────────────────────────
- * `settlements.all()` returns only settlement HEADERS (id, amount, status, dates).
- * It does NOT include the constituent payments inside each settlement.
+ * The installed SDK does NOT have fetchRecon().
+ * The correct method is `razorpay.settlements.reports({ year, month, day?, count?, skip? })`
+ * which hits GET /v1/settlements/recon/combined.
  *
- * To get the payment-to-settlement mapping we must use the Settlement Recon API:
- *   GET /v1/settlements/recon/combined?from=&to=&count=&skip=
- *
- * Each recon item has:
+ * Each item returned has:
  *   - entity_id     → the razorpay payment_id (pay_XXXX)
  *   - settlement_id → the settlement it belongs to (setl_XXXX)
  *   - settled_at    → unix timestamp of settlement
  *   - type          → "payment" | "refund" | "transfer" | "adjustment"
  *
- * We match entity_id against our Transaction.razorpayPaymentId.
+ * We call reports() for each month between the oldest CAPTURED transaction
+ * and today, then match entity_id against Transaction.razorpayPaymentId.
  */
 
 import cron from 'node-cron';
@@ -39,10 +38,59 @@ function getPlatformRazorpay(): Razorpay {
 }
 
 /**
+ * Fetches all recon items for a given year+month by paginating through
+ * the reports() endpoint (max 1000 per call).
+ */
+async function fetchReconForMonth(
+    razorpay: Razorpay,
+    year: number,
+    month: number // 1-indexed (1 = Jan, 12 = Dec)
+): Promise<any[]> {
+    const allItems: any[] = [];
+    const pageSize = 1000;
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+        const response = await (razorpay as any).settlements.reports({
+            year,
+            month,
+            count: pageSize,
+            skip,
+        });
+
+        // SDK v2.9.6 returns the recon object directly (not wrapped in .items)
+        // Guard against various response shapes
+        let items: any[] = [];
+        if (Array.isArray(response)) {
+            items = response;
+        } else if (response?.items && Array.isArray(response.items)) {
+            items = response.items;
+        } else if (response?.entity_id) {
+            // Single item returned directly
+            items = [response];
+        }
+
+        allItems.push(...items);
+
+        if (items.length < pageSize) {
+            hasMore = false;
+        } else {
+            skip += pageSize;
+        }
+    }
+
+    return allItems;
+}
+
+/**
  * Core sync logic — exported so it can be called manually via the API.
  *
- * Uses the Settlement Recon API (not settlements.all) to correctly get
- * the payment_id → settlement_id mapping.
+ * Strategy:
+ * 1. Find the oldest CAPTURED transaction to know how far back to look.
+ * 2. Call reports() for every year-month from then until now.
+ * 3. For each recon item of type "payment", match entity_id to our DB.
+ * 4. Mark matched CAPTURED transactions as SETTLED.
  */
 export async function runSettlementSync(): Promise<void> {
     logger.info('💸 Running Settlement Sync Job...');
@@ -56,36 +104,48 @@ export async function runSettlementSync(): Promise<void> {
     }
 
     try {
-        const to = Math.floor(Date.now() / 1000);
-        const from = to - 30 * 24 * 60 * 60; // Last 30 days to catch older settlements
+        // Find oldest CAPTURED transaction to determine the date range to query
+        const oldestCaptured = await prisma.transaction.findFirst({
+            where: { status: 'CAPTURED' },
+            orderBy: { capturedAt: 'asc' },
+            select: { capturedAt: true },
+        });
 
-        // ─── STEP 1: Use the Settlement Recon API ───────────────────────────
-        // This is the ONLY Razorpay endpoint that maps payments → settlements.
-        // settlements.all() does NOT contain this data.
-        //
-        // Paginate through all recon items (max 1000 per call, we do batches of 200).
-        let skip = 0;
-        const pageSize = 200;
+        if (!oldestCaptured) {
+            logger.info('Settlement Sync: No CAPTURED transactions to sync.');
+            return;
+        }
+
+        const startDate = oldestCaptured.capturedAt;
+        const now = new Date();
+
+        // Build list of year-month pairs to query
+        const months: Array<{ year: number; month: number }> = [];
+        const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        while (cursor <= now) {
+            months.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 }); // month is 1-indexed
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+
+        logger.info(`Settlement Sync: Querying ${months.length} month(s) of recon data...`);
+
         let totalUpdated = 0;
         let totalSkipped = 0;
-        let hasMore = true;
 
-        while (hasMore) {
-            const reconResponse = await (razorpay as any).settlements.fetchRecon({
-                from,
-                to,
-                count: pageSize,
-                skip,
-            });
+        for (const { year, month } of months) {
+            logger.info(`Settlement Sync: Fetching recon for ${year}-${String(month).padStart(2, '0')}...`);
 
-            const items: any[] = reconResponse?.items ?? [];
-
-            if (items.length === 0) {
-                hasMore = false;
-                break;
+            let items: any[] = [];
+            try {
+                items = await fetchReconForMonth(razorpay, year, month);
+            } catch (err) {
+                logger.warn(`Settlement Sync: Failed to fetch recon for ${year}-${month}`, {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                continue; // Skip this month, try the next
             }
 
-            logger.info(`Settlement Sync: Recon page — skip=${skip}, got ${items.length} items`);
+            logger.info(`Settlement Sync: ${year}-${String(month).padStart(2, '0')} → ${items.length} recon item(s)`);
 
             for (const item of items) {
                 // Only process payment-type entities (not refunds, adjustments, etc.)
@@ -95,13 +155,11 @@ export async function runSettlementSync(): Promise<void> {
 
                 const paymentId: string | undefined = item.entity_id;
                 const settlementId: string | undefined = item.settlement_id;
-                // settled_at is a unix timestamp in seconds
                 const settledAt: Date = item.settled_at
                     ? new Date(item.settled_at * 1000)
                     : new Date();
 
                 if (!paymentId || !settlementId) {
-                    logger.warn('Settlement Sync: Recon item missing entity_id or settlement_id', { item });
                     continue;
                 }
 
@@ -115,7 +173,7 @@ export async function runSettlementSync(): Promise<void> {
 
                 if (!transaction) {
                     totalSkipped++;
-                    continue; // Already settled, refunded, or not our transaction
+                    continue;
                 }
 
                 await prisma.transaction.update({
@@ -128,31 +186,23 @@ export async function runSettlementSync(): Promise<void> {
                 });
 
                 totalUpdated++;
-                logger.info('Settlement Sync: Marked SETTLED via Recon API', {
+                logger.info('Settlement Sync: Marked SETTLED', {
                     transactionId: transaction.id,
                     razorpayPaymentId: paymentId,
                     settlementId,
                     settledAt,
                 });
             }
-
-            // If we got fewer items than requested, we're on the last page
-            if (items.length < pageSize) {
-                hasMore = false;
-            } else {
-                skip += pageSize;
-            }
         }
 
-        logger.info(`✅ Settlement Sync (Recon) complete. Updated: ${totalUpdated}, Skipped: ${totalSkipped}`);
+        logger.info(`✅ Settlement Sync complete. Updated: ${totalUpdated}, Skipped: ${totalSkipped}`);
 
     } catch (error) {
         logger.error('❌ Settlement Sync Job failed', {
             error: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined,
         });
-        // Re-throw so the controller can surface the real error message
-        throw error;
+        throw error; // Re-throw so the controller can surface the real error
     }
 }
 
