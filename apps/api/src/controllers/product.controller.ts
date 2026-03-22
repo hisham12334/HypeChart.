@@ -4,11 +4,12 @@ import { z } from 'zod';
 
 const productService = new ProductService();
 
-const sizeStockSchema = z.object({
-  S: z.coerce.number().int().min(0).default(0),
-  M: z.coerce.number().int().min(0).default(0),
-  L: z.coerce.number().int().min(0).default(0)
-});
+const customSizeSchema = z.array(
+  z.object({
+    label: z.string().min(1, 'Size label is required'),
+    stock: z.coerce.number().int().min(0).default(0),
+  })
+).optional().default([]);
 
 // Validation Schema
 const createProductSchema = z.object({
@@ -16,12 +17,14 @@ const createProductSchema = z.object({
   description: z.string().optional(),
   basePrice: z.coerce.number().min(0, "Base price must be 0 or greater"),
   images: z.array(z.string().url("Invalid image URL")).optional().default([]),
-  productDropDate: z.string().optional(), // ISO Date string
+  productDropDate: z.string().optional(),
   isVariantMode: z.boolean().optional().default(false),
-  sizes: sizeStockSchema.optional(),
+  // Simple mode: dynamic sizes array
+  customSizes: customSizeSchema,
+  // Variant mode: each variant has its own sizes
   variants: z.array(z.object({
     name: z.string().min(1, "Variant name is required"),
-    sizes: sizeStockSchema,
+    customSizes: customSizeSchema,
     imageUrl: z.string().nullish().or(z.literal(''))
   })).optional().default([])
 });

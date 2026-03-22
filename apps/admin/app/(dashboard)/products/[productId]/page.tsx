@@ -62,11 +62,7 @@ export default function EditProductPage() {
                         inventoryCount: v.inventoryCount
                     })));
                 } else {
-                    setVariants([
-                        { name: 'Size S', inventoryCount: 0 },
-                        { name: 'Size M', inventoryCount: 0 },
-                        { name: 'Size L', inventoryCount: 0 },
-                    ]);
+                    setVariants([]);
                 }
             }
         } catch (error) {

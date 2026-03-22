@@ -22,22 +22,32 @@ export class ProductService {
     const basePrice = Number(data.basePrice) || 0;
 
     if (!data.isVariantMode || !data.variants || data.variants.length === 0) {
-      // Simple Journey: Hidden Default Variants using sizes
-      const sizes = data.sizes || { S: 0, M: 0, L: 0 };
-      variantsToCreate = [
-        { name: "Size S", price: basePrice, inventoryCount: sizes.S, imageUrl: data.images?.[0] || null },
-        { name: "Size M", price: basePrice, inventoryCount: sizes.M, imageUrl: data.images?.[0] || null },
-        { name: "Size L", price: basePrice, inventoryCount: sizes.L, imageUrl: data.images?.[0] || null }
-      ];
+      // Simple Journey: Hidden Default Variants using dynamic customSizes
+      const customSizes: { label: string; stock: number }[] = data.customSizes && data.customSizes.length > 0
+        ? data.customSizes
+        : [{ label: 'S', stock: 0 }, { label: 'M', stock: 0 }, { label: 'L', stock: 0 }];
+
+      variantsToCreate = customSizes.map((sz: { label: string; stock: number }) => ({
+        name: `Size ${sz.label}`,
+        price: basePrice,
+        inventoryCount: sz.stock,
+        imageUrl: data.images?.[0] || null,
+      }));
     } else {
-      // Variant Journey: Use provided color variants and generate 3 size variants for each
+      // Variant Journey: Each variant has its own dynamic customSizes
       for (const variant of data.variants) {
-        const sizes = variant.sizes || { S: 0, M: 0, L: 0 };
-        variantsToCreate.push(
-          { name: `${variant.name} - Size S`, price: basePrice, inventoryCount: sizes.S, imageUrl: variant.imageUrl || null },
-          { name: `${variant.name} - Size M`, price: basePrice, inventoryCount: sizes.M, imageUrl: variant.imageUrl || null },
-          { name: `${variant.name} - Size L`, price: basePrice, inventoryCount: sizes.L, imageUrl: variant.imageUrl || null }
-        );
+        const customSizes: { label: string; stock: number }[] = variant.customSizes && variant.customSizes.length > 0
+          ? variant.customSizes
+          : [{ label: 'S', stock: 0 }, { label: 'M', stock: 0 }, { label: 'L', stock: 0 }];
+
+        for (const sz of customSizes) {
+          variantsToCreate.push({
+            name: `${variant.name} - Size ${sz.label}`,
+            price: basePrice,
+            inventoryCount: sz.stock,
+            imageUrl: variant.imageUrl || null,
+          });
+        }
       }
     }
 
