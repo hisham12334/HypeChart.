@@ -245,7 +245,6 @@ function TransactionModal({
                     {[
                         { label: 'Gross Amount', value: formatINR(txn.grossAmount) },
                         { label: 'Razorpay Fee (2%)', value: formatINR(txn.razorpayFee) },
-                        { label: 'Platform Fee (0.7%)', value: formatINR(txn.platformFee) },
                         { label: 'Net (Yours)', value: formatINR(txn.netAmount) },
                     ].map(({ label, value }) => (
                         <div
@@ -844,7 +843,7 @@ export default function PaymentsPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-slate-800">
-                                            {['Order', 'Gross', 'Rzp Fee (2%)', 'Platform (0.7%)', 'Net (Yours)', 'Status', 'Settlement Date', 'Payout Date'].map(
+                                            {['Order', 'Gross', 'Rzp Fee (2%)', 'Net (Yours)', 'Status', 'Settlement Date', 'Payout Date'].map(
                                                 (h) => (
                                                     <th
                                                         key={h}
@@ -871,9 +870,6 @@ export default function PaymentsPage() {
                                                 </td>
                                                 <td className="px-6 py-4 text-rose-400/80">
                                                     {formatINR(txn.razorpayFee)}
-                                                </td>
-                                                <td className="px-6 py-4 text-amber-400/80">
-                                                    {formatINR(txn.platformFee)}
                                                 </td>
                                                 <td className="px-6 py-4 text-emerald-400 font-semibold">
                                                     {formatINR(txn.netAmount)}
@@ -918,7 +914,7 @@ export default function PaymentsPage() {
                                                 </p>
                                                 <p className="text-xs text-emerald-400 mt-0.5">
                                                     Net: {formatINR(txn.netAmount)} &nbsp;
-                                                    <span className="text-slate-600">| Rzp: {formatINR(txn.razorpayFee)} | Plat: {formatINR(txn.platformFee)}</span>
+                                                    <span className="text-slate-600">| Rzp: {formatINR(txn.razorpayFee)}</span>
                                                 </p>
                                             </div>
                                             <div className="text-right">

@@ -205,12 +205,11 @@ export class PaymentController {
 
             // ── Fee split ───────────────────────────────────────────────────
             // Razorpay always deducts 2% from gross before settling to us.
-            // Platform fee (Hypechart cut) is 0.7% of gross.
-            // Brand receives: gross − razorpay_fee − platform_fee
+            // Platform fee is NOT deducted — brand receives gross minus razorpay fee only.
             const RAZORPAY_FEE_PERCENT = 2;
             const razorpayFee = parseFloat(((grossAmount * RAZORPAY_FEE_PERCENT) / 100).toFixed(2));
-            const platformFee = parseFloat(((grossAmount * feePercent) / 100).toFixed(2));
-            const netAmount = parseFloat((grossAmount - razorpayFee - platformFee).toFixed(2));
+            const platformFee = 0; // No platform fee charged
+            const netAmount = parseFloat((grossAmount - razorpayFee).toFixed(2));
             // ────────────────────────────────────────────────────────────────
 
             // settlementEta = capturedAt + 2 business days (excluding weekends)

@@ -144,12 +144,11 @@ export const createOrderWithIdempotency = async (data: OrderCreationData, idempo
         const grossAmount = parseFloat(customerDetails.amount);
         // ── Fee split ───────────────────────────────────────────────────
         // Razorpay always deducts 2% before settling to the platform.
-        // Platform fee (Hypechart cut) = feePercent (0.7% by default).
-        // Brand receives: gross − razorpay_fee − platform_fee
+        // Platform fee is NOT deducted — brand receives gross minus razorpay fee only.
         const RAZORPAY_FEE_PERCENT = 2;
         const razorpayFee = parseFloat(((grossAmount * RAZORPAY_FEE_PERCENT) / 100).toFixed(2));
-        const platformFee = parseFloat(((grossAmount * feePercent) / 100).toFixed(2));
-        const netAmount = parseFloat((grossAmount - razorpayFee - platformFee).toFixed(2));
+        const platformFee = 0; // No platform fee charged
+        const netAmount = parseFloat((grossAmount - razorpayFee).toFixed(2));
         
         // Calculate settlement ETA (T+2 business days, excluding weekends)
         const capturedAt = new Date();
