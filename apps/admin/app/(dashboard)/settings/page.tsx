@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from "sonner";
-import { paymentSettingsApi, whatsappSettingsApi } from '@/lib/api-client';
+import { paymentSettingsApi, whatsappSettingsApi, apiClient } from '@/lib/api-client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,9 @@ import { MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function PaymentsSettingsPage() {
   const [tier, setTier] = useState<"STARTER" | "PRO">("STARTER");
+
+  // --- UPI DIRECT STATE ---
+  const [upiId, setUpiId] = useState('');
 
   // --- PRO FORM STATE ---
   const [apiKeys, setApiKeys] = useState({ keyId: "", keySecret: "" });
@@ -26,6 +29,14 @@ export default function PaymentsSettingsPage() {
   useEffect(() => {
     const load = async () => {
       try {
+        // Load UPI ID
+        try {
+          const userRes = await apiClient.get('/auth/me');
+          if (userRes.data.user?.upiId) setUpiId(userRes.data.user.upiId);
+        } catch (_) {
+          // Silently fail
+        }
+
         const res = await whatsappSettingsApi.get();
         if (res.success) {
           setWhatsapp({
@@ -267,6 +278,44 @@ export default function PaymentsSettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ══ UPI DIRECT ══ */}
+      <Card>
+        <CardHeader>
+          <CardTitle>UPI Direct</CardTitle>
+          <CardDescription>
+            Customers pay directly to your UPI ID. Instant settlement, zero fees.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="upi-id">Your UPI ID</Label>
+            <Input
+              id="upi-id"
+              placeholder="yourname@okaxis"
+              value={upiId}
+              onChange={e => setUpiId(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Find this in your GPay / PhonePe / bank app settings
+            </p>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                const res = await apiClient.post('/upi/settings', { upiId });
+                if (res.data.success) toast.success('UPI ID saved successfully');
+                else toast.error('Failed to save UPI ID');
+              } catch (err: any) {
+                toast.error(err.response?.data?.error || 'Failed to save UPI ID');
+              }
+            }}
+            className="w-fit"
+          >
+            Save UPI ID
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* ══ NOTIFICATIONS ══ */}
       <div>

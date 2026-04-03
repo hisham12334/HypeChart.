@@ -247,17 +247,31 @@ Thank you for shopping with Hypechart!
                             </tr>
                         </thead>
                         <tbody className="text-sm">
-                            {(order.items || []).map((item: any) => (
-                                <tr key={item.id} className="border-b border-gray-50">
-                                    <td className="py-4">
-                                        <p className="font-bold text-gray-900">{item.productName}</p>
-                                        <p className="text-xs text-gray-500">{item.variantName}</p>
-                                    </td>
-                                    <td className="py-4 text-right">{item.quantity}</td>
-                                    <td className="py-4 text-right">₹{item.price}</td>
-                                    <td className="py-4 text-right font-medium">₹{Number(item.price) * item.quantity}</td>
-                                </tr>
-                            ))}
+                            {(order.items || []).map((item: any) => {
+                                const imgUrl = item.imageUrl || null;
+                                return (
+                                    <tr key={item.id} className="border-b border-gray-50">
+                                        <td className="py-4">
+                                            <div className="flex items-center gap-3">
+                                                {imgUrl && (
+                                                    <img
+                                                        src={imgUrl}
+                                                        alt={item.productName}
+                                                        className="w-10 h-10 rounded object-cover border border-gray-100 shrink-0 print:hidden"
+                                                    />
+                                                )}
+                                                <div>
+                                                    <p className="font-bold text-gray-900">{item.productName}</p>
+                                                    <p className="text-xs text-gray-500">{item.variantName}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="py-4 text-right">{item.quantity}</td>
+                                        <td className="py-4 text-right">₹{item.price}</td>
+                                        <td className="py-4 text-right font-medium">₹{Number(item.price) * item.quantity}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
 

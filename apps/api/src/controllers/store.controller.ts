@@ -18,8 +18,11 @@ export class StoreController {
           variants: true,
           user: {
             select: {
+              id: true,
               brandName: true,
-              logoUrl: true
+              logoUrl: true,
+              paymentMode: true,
+              upiId: true
             }
           }
         }

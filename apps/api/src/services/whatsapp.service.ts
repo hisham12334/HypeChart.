@@ -193,3 +193,59 @@ export async function sendWhatsAppMessage(
         return { success: false, error: error.message };
     }
 }
+
+// Send interactive confirmation request to brand when customer submits UTR
+export async function sendWhatsAppInteractiveConfirmation(
+  phoneNumberId: string,
+  accessToken: string,
+  toBrandPhone: string,
+  orderNumber: string,
+  customerName: string,
+  amount: number,
+  utr: string
+): Promise<WhatsAppSendResult> {
+  const formattedPhone = formatPhoneForWhatsApp(toBrandPhone);
+  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+
+  const body = {
+    messaging_product: 'whatsapp',
+    to: formattedPhone,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: {
+        text: `🛍️ New Order ${orderNumber}\n👤 ${customerName}\n💰 ₹${amount}\n🔖 UTR: ${utr}\n\nCheck your bank app and confirm payment:`
+      },
+      action: {
+        buttons: [
+          { type: 'reply', reply: { id: '1', title: '✅ Received' } },
+          { type: 'reply', reply: { id: '2', title: '❌ Not Received' } }
+        ]
+      }
+    }
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await response.json() as any;
+
+    if (!response.ok) {
+      const errMsg = data?.error?.message || 'Unknown error';
+      logger.error('Failed to send WA interactive confirmation', { orderNumber, error: errMsg });
+      return { success: false, error: errMsg };
+    }
+
+    return { success: true, messageId: data?.messages?.[0]?.id };
+  } catch (err: any) {
+    logger.error('WA interactive confirmation exception', { orderNumber, error: err.message });
+    return { success: false, error: err.message };
+  }
+}

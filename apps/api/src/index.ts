@@ -19,6 +19,7 @@ import storeRoutes from './routes/store.routes';
 import waitlistRoutes from './routes/waitlist.routes';
 import { startInventoryCleanupJob } from './jobs/inventory-cleanup.job';
 import { startSettlementSyncJob } from './jobs/settlement-sync.job';
+import upiRoutes from './routes/upi.routes';
 
 
 // Resolve .env from monorepo root (works for both ts-node from src/ and node from dist/)
@@ -87,6 +88,7 @@ app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/store', storeRoutes);
+app.use('/api/upi', upiRoutes);
 
 app.listen(port, () => {
   console.log(`🚀 API Server running at http://localhost:${port}`);

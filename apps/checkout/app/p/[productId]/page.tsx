@@ -131,7 +131,7 @@ export default function ProductPage() {
             quantity: 1,
             brandName: product.user.brandName,
             brandId: product.userId || product.user?.id, // Pass brandId so verify endpoint can use the brand's Razorpay keys
-            slug: product.slug,
+            slug: (product as any).checkoutSlug || product.slug,
             variantName: product.variants.find((v: any) => v.id === selectedVariant)?.name || 'Standard'
         };
 

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "paymentMode" TEXT NOT NULL DEFAULT 'RAZORPAY_PLATFORM';

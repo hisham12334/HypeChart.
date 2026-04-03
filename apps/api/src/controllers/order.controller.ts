@@ -29,7 +29,25 @@ export class OrderController {
                 }
             });
 
-            res.json({ success: true, data: orders });
+            // Enrich items with variant imageUrl in a single batch query
+            const allVariantIds = [...new Set(orders.flatMap(o => o.items.map(i => i.variantId)))];
+            const variants = allVariantIds.length > 0
+                ? await prisma.variant.findMany({
+                    where: { id: { in: allVariantIds } },
+                    select: { id: true, imageUrl: true }
+                  })
+                : [];
+            const variantImageMap = Object.fromEntries(variants.map(v => [v.id, v.imageUrl]));
+
+            const enrichedOrders = orders.map(o => ({
+                ...o,
+                items: o.items.map(i => ({
+                    ...i,
+                    imageUrl: variantImageMap[i.variantId] || null
+                }))
+            }));
+
+            res.json({ success: true, data: enrichedOrders });
         } catch (error: any) {
             console.error("Fetch orders error:", error);
             res.status(500).json({ success: false, error: error.message });

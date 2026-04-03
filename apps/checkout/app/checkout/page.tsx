@@ -29,6 +29,13 @@ function CheckoutContent() {
   const [loading, setLoading] = useState(false); // Payment processing
   const [dataLoading, setDataLoading] = useState(true); // Initial load
 
+  // UPI Direct state
+  const [upiUrl, setUpiUrl] = useState<string | null>(null);
+  const [upiOrderId, setUpiOrderId] = useState<string | null>(null);
+  const [utrInput, setUtrInput] = useState('');
+  const [upiStep, setUpiStep] = useState<'pay' | 'utr' | 'pending'>('pay');
+  const [isUpiMode, setIsUpiMode] = useState(false);
+
   // --- 1. NEW: Form State to capture user inputs ---
   const [formData, setFormData] = useState({
     name: '',
@@ -90,10 +97,65 @@ function CheckoutContent() {
   }, [paramVariantId, paramQuantity]);
 
 
-  // --- 3. Handle Real Payment (Razorpay) with Verification ---
+  // --- 3. Handle Payment — detects UPI_DIRECT brand or falls through to Razorpay ---
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return alert("Cart is empty");
+
+    // Detect brand payment mode using slug stored on cart items
+    const slug = items[0]?.slug;
+    const brandId = items[0]?.brandId;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+    console.log('🛒 Cart item[0]:', JSON.stringify(items[0], null, 2));
+    console.log('🔑 slug:', slug, '| brandId:', brandId);
+
+    if (slug || brandId) {
+      try {
+        let paymentMode = 'RAZORPAY_PLATFORM';
+        let resolvedBrandId = brandId;
+
+        if (slug) {
+          const brandRes = await fetch(`${API_URL}/store/product/${slug}`);
+          const brandData = await brandRes.json();
+          paymentMode = brandData?.user?.paymentMode || 'RAZORPAY_PLATFORM';
+          resolvedBrandId = brandData?.userId || brandData?.user?.id || brandId;
+          console.log('Payment mode detected:', paymentMode, 'for brand:', resolvedBrandId);
+        }
+
+        if (paymentMode === 'UPI_DIRECT') {
+          setIsUpiMode(true);
+          const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          const customerDetails = {
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email,
+            address: formData.address,
+            city: formData.city,
+            state: formData.state,
+            pincode: formData.pincode,
+          };
+          const res = await fetch(`${API_URL}/upi/initiate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              brandId: resolvedBrandId,
+              sessionId,
+              items: items.map(i => ({ variantId: i.variantId, quantity: i.quantity })),
+              customerDetails
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setUpiUrl(data.data.upiUrl);
+            setUpiOrderId(data.data.orderId);
+            setUpiStep('pay');
+          }
+          return;
+        }
+      } catch (err) {
+        console.error('Brand detection failed, falling back to Razorpay', err);
+      }
+    }
 
     setLoading(true);
 
@@ -379,20 +441,174 @@ function CheckoutContent() {
                 </div>
               </div>
 
-              <button
-                form="checkout-form"
-                disabled={loading || items.length === 0}
-                className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 hidden md:flex"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    PROCESSING...
-                  </>
-                ) : (
-                  'COMPLETE ORDER'
-                )}
-              </button>
+              {isUpiMode && (
+                <div className="mb-4">
+                  {upiStep === 'pay' && (
+                    <div className="border border-neutral-200 rounded-xl overflow-hidden">
+                      <div className="bg-neutral-900 px-5 py-5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white/50 text-xs uppercase tracking-widest">Amount due</p>
+                            <p className="text-white text-3xl font-serif mt-1">₹{total}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-white text-xs">Secure</span>
+                          </div>
+                        </div>
+                        {/* Step pills */}
+                        <div className="flex items-center gap-2 mt-4">
+                          <span className="bg-white text-neutral-900 text-xs font-semibold px-2.5 py-1 rounded-full">1 Pay</span>
+                          <div className="flex-1 h-px bg-white/20" />
+                          <span className="bg-white/10 text-white/50 text-xs px-2.5 py-1 rounded-full">2 Enter UTR</span>
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-5">
+                        {/* Warning — must be seen */}
+                        <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3">
+                          <p className="text-xs font-semibold text-amber-900">Your order won't be confirmed until Step 2</p>
+                          <p className="text-xs text-amber-700 mt-0.5">After paying, come back here and enter your UTR number.</p>
+                        </div>
+
+                        <a
+                          href={upiUrl || '#'}
+                          className="flex items-center justify-center w-full bg-neutral-900 text-white py-4 rounded-lg text-sm font-medium tracking-wide hover:bg-neutral-800 active:scale-[0.98] transition-all"
+                        >
+                          Pay ₹{total} via UPI
+                        </a>
+
+                        <p className="text-center text-xs text-neutral-400">GPay · PhonePe · Paytm · BHIM · any UPI app</p>
+
+                        <button
+                          type="button"
+                          onClick={() => setUpiStep('utr')}
+                          className="w-full border-2 border-neutral-900 text-neutral-900 py-3.5 rounded-lg text-sm font-semibold hover:bg-neutral-50 active:scale-[0.98] transition-all"
+                        >
+                          I've paid — Enter UTR →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {upiStep === 'utr' && (
+                    <div className="border border-neutral-200 rounded-xl overflow-hidden">
+                      <div className="bg-neutral-900 px-5 py-5">
+                        <button
+                          type="button"
+                          onClick={() => setUpiStep('pay')}
+                          className="text-white/50 text-xs hover:text-white transition-colors mb-3 flex items-center gap-1"
+                        >
+                          ← Back
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-white/10 text-white/50 text-xs px-2.5 py-1 rounded-full">1 Paid ✓</span>
+                          <div className="flex-1 h-px bg-white/20" />
+                          <span className="bg-white text-neutral-900 text-xs font-semibold px-2.5 py-1 rounded-full">2 Enter UTR</span>
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-5">
+                        {/* Where to find UTR */}
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-900 mb-3">Where is the UTR number?</p>
+                          <div className="space-y-2.5">
+                            {[
+                              { app: 'GPay', path: 'Tap transaction → "UPI transaction ID"' },
+                              { app: 'PhonePe', path: 'History → Tap transaction → "UPI Ref No."' },
+                              { app: 'Paytm', path: 'Passbook → Tap transaction → "UTR No."' },
+                            ].map(({ app, path }) => (
+                              <div key={app} className="flex items-start gap-3 bg-neutral-50 rounded-lg px-3 py-2.5">
+                                <span className="text-xs font-semibold text-neutral-900 w-14 shrink-0 pt-0.5">{app}</span>
+                                <span className="text-xs text-neutral-500 leading-relaxed">{path}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {/* Visual example */}
+                          <div className="mt-3 flex items-center gap-2 bg-neutral-100 rounded-lg px-3 py-2.5">
+                            <span className="text-xs text-neutral-500">Looks like:</span>
+                            <span className="font-mono text-sm font-semibold text-neutral-800 tracking-widest">424212345678</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">Your UTR number</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="12-digit number"
+                            maxLength={12}
+                            value={utrInput}
+                            onChange={e => setUtrInput(e.target.value.replace(/\D/g, ''))}
+                            className="w-full border border-neutral-300 focus:border-neutral-900 outline-none rounded-lg px-4 py-3.5 text-base font-mono tracking-widest transition-colors"
+                          />
+                          <div className="flex justify-between mt-1.5">
+                            <span className="text-xs text-neutral-400">Numbers only</span>
+                            <span className={`text-xs font-medium ${utrInput.length === 12 ? 'text-emerald-600' : 'text-neutral-400'}`}>
+                              {utrInput.length}/12
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={utrInput.length < 12}
+                          onClick={async () => {
+                            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/upi/confirm`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                orderId: upiOrderId,
+                                utrNumber: utrInput,
+                                customerPhone: formData.phone
+                              })
+                            });
+                            const data = await res.json();
+                            if (data.success) setUpiStep('pending');
+                          }}
+                          className="w-full bg-neutral-900 text-white py-4 rounded-lg text-sm font-semibold tracking-wide hover:bg-neutral-800 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                        >
+                          Confirm & Place Order
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {upiStep === 'pending' && (
+                    <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-6 text-center space-y-3">
+                      <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+                        <ShieldCheck className="w-7 h-7 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-neutral-900 text-lg">Order placed</p>
+                        <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
+                          Payment is being verified. You'll get a WhatsApp confirmation once the brand approves it.
+                        </p>
+                      </div>
+                      <div className="pt-3 border-t border-emerald-200">
+                        <p className="text-xs text-neutral-400">UTR: <span className="font-mono text-neutral-700 tracking-widest">{utrInput}</span></p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isUpiMode && (
+                <button
+                  form="checkout-form"
+                  disabled={loading || items.length === 0}
+                  className="w-full bg-neutral-900 text-white py-4 text-sm font-medium tracking-wide hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 hidden md:flex"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      PROCESSING...
+                    </>
+                  ) : (
+                    'COMPLETE ORDER'
+                  )}
+                </button>
+              )}
 
               <div className="mt-4 flex items-center justify-center gap-2 text-xs text-neutral-500">
                 <ShieldCheck className="w-3 h-3" />
@@ -419,6 +635,160 @@ function CheckoutContent() {
           </a>
         </div>
       </footer>
+
+      {/* MOBILE UPI FULL-SCREEN SHEET */}
+      {isUpiMode && (
+        <div className="fixed inset-0 bg-white z-50 md:hidden flex flex-col">
+          {/* Sheet header */}
+          <div className="bg-neutral-900 px-5 pt-10 pb-5 shrink-0">
+            {upiStep !== 'pending' && (
+              <button
+                type="button"
+                onClick={() => upiStep === 'utr' ? setUpiStep('pay') : setIsUpiMode(false)}
+                className="text-white/50 text-sm hover:text-white transition-colors mb-4 flex items-center gap-1.5"
+              >
+                ← {upiStep === 'utr' ? 'Back' : 'Cancel'}
+              </button>
+            )}
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-white/50 text-xs uppercase tracking-widest">Amount due</p>
+                <p className="text-white text-4xl font-serif mt-1">₹{total}</p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1.5 mb-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-white text-xs">Secure</span>
+              </div>
+            </div>
+            {/* Step pills */}
+            <div className="flex items-center gap-2 mt-4">
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full transition-all ${upiStep === 'pay' ? 'bg-white text-neutral-900' : 'bg-white/10 text-white/50'}`}>
+                {upiStep !== 'pay' ? '1 Paid ✓' : '1 Pay'}
+              </span>
+              <div className="flex-1 h-px bg-white/20" />
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full transition-all ${upiStep === 'utr' ? 'bg-white text-neutral-900' : upiStep === 'pending' ? 'bg-white/10 text-white/50' : 'bg-white/10 text-white/40'}`}>
+                {upiStep === 'pending' ? '2 Done ✓' : '2 Enter UTR'}
+              </span>
+            </div>
+          </div>
+
+          {/* Sheet body — scrollable */}
+          <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
+            {upiStep === 'pay' && (
+              <>
+                <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3">
+                  <p className="text-sm font-semibold text-amber-900">2 steps to confirm your order</p>
+                  <p className="text-sm text-amber-700 mt-0.5">Pay below, then come back and enter your UTR number. Order is only confirmed after Step 2.</p>
+                </div>
+                <a
+                  href={upiUrl || '#'}
+                  className="flex items-center justify-center w-full bg-neutral-900 text-white py-5 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                >
+                  Pay ₹{total} via UPI
+                </a>
+                <p className="text-center text-sm text-neutral-400">GPay · PhonePe · Paytm · BHIM · any UPI app</p>
+              </>
+            )}
+
+            {upiStep === 'utr' && (
+              <>
+                <div>
+                  <p className="text-base font-semibold text-neutral-900 mb-4">Where is the UTR number?</p>
+                  <div className="space-y-3">
+                    {[
+                      { app: 'GPay', path: 'Tap transaction → "UPI transaction ID"' },
+                      { app: 'PhonePe', path: 'History → Tap transaction → "UPI Ref No."' },
+                      { app: 'Paytm', path: 'Passbook → Tap transaction → "UTR No."' },
+                    ].map(({ app, path }) => (
+                      <div key={app} className="flex items-start gap-3 bg-neutral-50 rounded-xl px-4 py-3">
+                        <span className="text-sm font-semibold text-neutral-900 w-16 shrink-0 pt-0.5">{app}</span>
+                        <span className="text-sm text-neutral-500 leading-relaxed">{path}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-3 bg-neutral-100 rounded-xl px-4 py-3">
+                    <span className="text-sm text-neutral-500">Looks like:</span>
+                    <span className="font-mono text-base font-bold text-neutral-800 tracking-widest">424212345678</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">Your UTR number</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="12-digit number"
+                    maxLength={12}
+                    value={utrInput}
+                    onChange={e => setUtrInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full border-2 border-neutral-200 focus:border-neutral-900 outline-none rounded-xl px-4 py-4 text-xl font-mono tracking-widest transition-colors"
+                  />
+                  <div className="flex justify-between mt-2">
+                    <span className="text-xs text-neutral-400">Numbers only</span>
+                    <span className={`text-sm font-semibold ${utrInput.length === 12 ? 'text-emerald-600' : 'text-neutral-400'}`}>
+                      {utrInput.length}/12
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {upiStep === 'pending' && (
+              <div className="flex flex-col items-center justify-center text-center py-8 space-y-4">
+                <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <ShieldCheck className="w-10 h-10 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-neutral-900">Order placed</p>
+                  <p className="text-base text-neutral-500 mt-2 leading-relaxed max-w-xs mx-auto">
+                    Payment is being verified. You'll get a WhatsApp confirmation once the brand approves it.
+                  </p>
+                </div>
+                <div className="bg-neutral-50 rounded-xl px-5 py-3 w-full">
+                  <p className="text-xs text-neutral-400 mb-1">UTR submitted</p>
+                  <p className="font-mono text-lg font-bold text-neutral-800 tracking-widest">{utrInput}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sticky bottom CTA */}
+          {upiStep !== 'pending' && (
+            <div className="shrink-0 px-5 pb-8 pt-4 border-t border-neutral-100 bg-white">
+              {upiStep === 'pay' ? (
+                <button
+                  type="button"
+                  onClick={() => setUpiStep('utr')}
+                  className="w-full border-2 border-neutral-900 text-neutral-900 py-4 rounded-xl text-base font-semibold active:scale-[0.98] transition-all"
+                >
+                  I've paid — Enter UTR →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={utrInput.length < 12}
+                  onClick={async () => {
+                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/upi/confirm`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        orderId: upiOrderId,
+                        utrNumber: utrInput,
+                        customerPhone: formData.phone
+                      })
+                    });
+                    const data = await res.json();
+                    if (data.success) setUpiStep('pending');
+                  }}
+                  className="w-full bg-neutral-900 text-white py-4 rounded-xl text-base font-semibold active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                >
+                  Confirm & Place Order
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* STICKY MOBILE PAYMENT BAR */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 p-4 md:hidden z-50 pb-safe">

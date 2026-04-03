@@ -36,6 +36,11 @@ model User {
   whatsappToken           String?  // Meta Permanent Access Token
   whatsappEnabled         Boolean  @default(false)
   // ----------------------------------------
+
+  // --- 💸 UPI PAYMENT FIELDS ---
+  upiId                   String?  // Brand's UPI ID (e.g. brandname@okaxis)
+  paymentMode             String   @default("RAZORPAY_PLATFORM") // "RAZORPAY_PLATFORM" | "RAZORPAY_BYOG" | "UPI_DIRECT"
+  // ----------------------------
   
   // Relations
   products     Product[]
@@ -199,10 +204,14 @@ model Order {
   shippingFee     Decimal  @default(0)
   total           Decimal
   
-  paymentStatus   String   // 'paid', 'pending', 'failed'
-  status          String   // 'processing', 'shipped', 'delivered'
+  paymentStatus   String   // 'paid', 'pending', 'failed', 'upi_pending'
+  status          String   // 'processing', 'confirmed', 'shipped', 'delivered'
   productDropDate DateTime?
   paidAt          DateTime?
+
+  // UPI-specific fields
+  utrNumber              String?  // Customer-submitted UTR after UPI payment
+  upiVerificationStatus  String?  // 'AWAITING' | 'CONFIRMED' | 'DISPUTED'
   
   items           OrderItem[]
   transactions    Transaction[]

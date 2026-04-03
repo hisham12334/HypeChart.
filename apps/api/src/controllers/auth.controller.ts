@@ -129,7 +129,7 @@ export class AuthController {
 
             const user = await prisma.user.findUnique({
                 where: { id: userId },
-                select: { id: true, email: true, name: true, brandName: true, slug: true }
+                select: { id: true, email: true, name: true, brandName: true, slug: true, upiId: true }
             });
 
             if (!user) {

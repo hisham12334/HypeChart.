@@ -36,6 +36,7 @@ A white-label e-commerce order management platform designed for Instagram D2C br
 - 📱 Activity logs and analytics
 - ⚙️ Settings page for payment gateway & WhatsApp Business configuration
 - 💳 **Payments Dashboard** — live balance (processing / available / paid-out) with paginated transaction ledger
+- 🏦 **UPI Direct** — set a UPI ID to receive payments directly; zero platform fees
 
 ### Checkout Experience
 - 🎨 White-label branded checkout pages
@@ -50,6 +51,7 @@ A white-label e-commerce order management platform designed for Instagram D2C br
 - 🛍️ Dynamic product pages with variant selection and correct image display
 - ✅ Stock validation before checkout
 - 🚚 **Shipping Fee Logic** — free shipping on orders ≥ ₹1,000, otherwise ₹99 (validated server-side)
+- 📲 **UPI Direct Checkout** — full-screen mobile UPI flow with 2-step UTR confirmation, per-app instructions, and premium UI
 
 ### Backend API
 - ⚡ Express.js REST API with organized route structure
@@ -737,6 +739,28 @@ docker-compose -f docker-compose.prod.yml up -d
 ---
 
 ## 📋 Recent Changes
+
+### v0.6.0 — UPI Direct Payment Mode (2026-04-03)
+
+- **UPI Direct**: Brands can now set a UPI ID in Settings → the checkout automatically detects `UPI_DIRECT` payment mode and routes customers through a UPI flow instead of Razorpay
+- **Admin Settings — UPI ID field**: New "UPI Direct" card in the settings page; saves UPI ID and switches `paymentMode` to `UPI_DIRECT` via `POST /api/upi/settings`
+- **Brand detection at checkout**: Checkout page fetches brand's `paymentMode` using the product's `checkoutSlug` before initiating payment; falls back to Razorpay if detection fails
+- **Premium UPI UI**: Full-screen mobile sheet with 2-step flow (Pay → Enter UTR), step progress pills, amber warning that order isn't confirmed until UTR is submitted, per-app instructions (GPay / PhonePe / Paytm) with visual UTR example, and a green confirmation screen
+- **UTR confirmation**: `POST /api/upi/confirm` endpoint accepts UTR number and customer phone; order is held pending brand manual verification
+- **`/api/upi/settings`**: New protected endpoint on `upi.routes.ts` to save UPI ID and switch payment mode
+- **`/api/upi/brand-mode/:brandId`**: New public endpoint to fetch a brand's payment mode and UPI ID
+
+### v0.5.1 — Admin Order Product Images (2026-04-03)
+
+- **Product thumbnails in order dialog**: Each line item in the order details dialog now shows a small product image (fetched from the variant's `imageUrl`) next to the product name — helps the brand owner quickly identify items
+- **Print-safe**: Images are hidden on print (`print:hidden`) so invoices remain clean
+- **Batch image fetch**: A single extra Prisma query fetches all variant images for all items in the order list — no N+1 queries, no schema changes required
+
+### v0.5.0 — Auth & API Fixes (2026-04-03)
+
+- **`/api/auth/me` returns `upiId`**: The `getMe` endpoint now includes `upiId` in the user select so the settings page can pre-populate the UPI ID field on load
+- **Admin API client token fix**: Settings page was reading `admin-token` from localStorage; corrected to use the `apiClient` axios instance (which reads `token`) — all authenticated requests now work correctly
+- **Checkout `NEXT_PUBLIC_API_URL` fallback**: All raw `fetch` calls in the checkout page now fall back to `http://localhost:4000/api` when the env var is undefined, preventing silent failures in local dev
 
 ### v0.4.0 — Fee Calculation & Financial Ledger (2026-03-01)
 
