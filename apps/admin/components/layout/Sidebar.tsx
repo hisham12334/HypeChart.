@@ -31,13 +31,15 @@ export function Sidebar() {
           <h1 className="text-2xl font-bold">Hypechart</h1>
         </Link>
         <div className="space-y-1">
-          {routes.map((route) => (
+          {routes.map((route) => {
+            const isActive = pathname === route.href || pathname.startsWith(`${route.href}/`);
+            return (
             <Link
               key={route.href}
               href={route.href}
               className={cn(
                 "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition",
-                pathname === route.href ? "text-white bg-white/10" : "text-zinc-400"
+                isActive ? "text-white bg-white/10" : "text-zinc-400"
               )}
             >
               <div className="flex items-center flex-1">
@@ -45,7 +47,8 @@ export function Sidebar() {
                 {route.label}
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

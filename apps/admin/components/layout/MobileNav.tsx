@@ -8,7 +8,8 @@ import {
     ShoppingBag,
     Package,
     Wallet,
-    BarChart3
+    BarChart3,
+    Settings
 } from 'lucide-react';
 
 const routes = [
@@ -17,6 +18,7 @@ const routes = [
     { label: 'Orders', icon: Package, href: '/orders' },
     { label: 'Payments', icon: Wallet, href: '/payments' },
     { label: 'Stats', icon: BarChart3, href: '/analytics' },
+    { label: 'Settings', icon: Settings, href: '/settings' },
 ];
 
 export function MobileNav() {
@@ -26,7 +28,7 @@ export function MobileNav() {
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-lg border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center justify-around h-16 px-2">
                 {routes.map((route) => {
-                    const isActive = pathname === route.href;
+                    const isActive = pathname === route.href || pathname.startsWith(`${route.href}/`);
                     return (
                         <Link
                             key={route.href}
@@ -41,9 +43,6 @@ export function MobileNav() {
                         </Link>
                     )
                 })}
-                {/* Settings as a smaller separate or merged? Let's add it or leave for profile. 
-                    5 items is usually max for good tap targets. Let's keep 5 main ones. 
-                */}
             </div>
         </div>
     );
