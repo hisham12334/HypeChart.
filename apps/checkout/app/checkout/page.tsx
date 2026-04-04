@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client';
 import { paymentClient } from '@/lib/payment-client';
 import { Loader2, ArrowLeft, ShieldCheck, Lock } from 'lucide-react';
 import Link from 'next/link';
+import QRCode from 'qrcode';
 
 // Allow TypeScript to recognize Razorpay on the window object
 declare global {
@@ -38,6 +39,7 @@ function CheckoutContent() {
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [isAndroidDevice, setIsAndroidDevice] = useState(false);
   const [upiCopied, setUpiCopied] = useState(false);
+  const [upiQrCode, setUpiQrCode] = useState<string | null>(null);
 
   // --- 1. NEW: Form State to capture user inputs ---
   const [formData, setFormData] = useState({
@@ -130,6 +132,39 @@ function CheckoutContent() {
       note: 'Try Paytm',
     },
   ];
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const generateQrCode = async () => {
+      if (!upiUrl) {
+        setUpiQrCode(null);
+        return;
+      }
+
+      try {
+        const dataUrl = await QRCode.toDataURL(upiUrl, {
+          width: 256,
+          margin: 1,
+        });
+
+        if (!isCancelled) {
+          setUpiQrCode(dataUrl);
+        }
+      } catch (error) {
+        console.error('Failed to generate UPI QR code', error);
+        if (!isCancelled) {
+          setUpiQrCode(null);
+        }
+      }
+    };
+
+    generateQrCode();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [upiUrl]);
 
   const handleCopyUpiId = async () => {
     if (!upiId || typeof navigator === 'undefined' || !navigator.clipboard) return;
@@ -528,7 +563,28 @@ function CheckoutContent() {
                         <p className="text-center text-xs text-neutral-400">GPay · PhonePe · Paytm · BHIM · any UPI app</p>
 
                         {!isMobileDevice && (
-                          <div className="hidden md:block border border-neutral-200 rounded-lg p-4 space-y-3 bg-neutral-50">
+                          <div className="hidden md:block border border-neutral-200 rounded-lg p-4 space-y-4 bg-neutral-50">
+                            <div className="text-center">
+                              <p className="text-xs uppercase tracking-widest text-neutral-500">Scan To Pay</p>
+                              <p className="text-sm text-neutral-600 mt-1">This QR includes the exact amount for this order.</p>
+                            </div>
+                            <div className="bg-white border border-neutral-200 rounded-lg p-4 flex justify-center">
+                              {upiQrCode ? (
+                                <img
+                                  src={upiQrCode}
+                                  alt={`UPI QR for ₹${total}`}
+                                  className="w-56 h-56"
+                                />
+                              ) : (
+                                <div className="w-56 h-56 flex items-center justify-center bg-neutral-100 text-neutral-400 text-sm">
+                                  Generating QR...
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs uppercase tracking-widest text-neutral-500">Amount</p>
+                              <p className="text-2xl font-serif text-neutral-900 mt-1">₹{total}</p>
+                            </div>
                             <div>
                               <p className="text-xs uppercase tracking-widest text-neutral-500">UPI ID</p>
                               <p className="font-mono text-base text-neutral-900 break-all mt-1">{upiId || 'Not available'}</p>
@@ -541,7 +597,7 @@ function CheckoutContent() {
                               {upiCopied ? 'Copied' : 'Copy UPI ID'}
                             </button>
                             <p className="text-xs text-neutral-500 leading-relaxed">
-                              Open GPay, PhonePe, Paytm, or any UPI app on your phone and pay manually using this UPI ID.
+                              Scan this QR in GPay, PhonePe, Paytm, or any UPI app to pay the correct invoice amount automatically.
                             </p>
                           </div>
                         )}
