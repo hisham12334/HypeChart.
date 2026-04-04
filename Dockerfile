@@ -23,7 +23,9 @@ FROM deps AS builder
 ARG APP_NAME
 
 # Generate Prisma Client
-RUN pnpm --filter @brand-order-system/database generate
+WORKDIR /app/packages/database
+RUN npx prisma generate
+WORKDIR /app
 
 # Build selected app
 RUN pnpm --filter ${APP_NAME} build
