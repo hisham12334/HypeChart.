@@ -71,7 +71,7 @@ export const whatsappSettingsApi = {
     const res = await apiClient.get('/store/whatsapp-settings');
     return res.data;
   },
-  save: async (data: { phoneNumberId: string; token: string; enabled: boolean }) => {
+  save: async (data: { phoneNumberId: string; token: string; enabled: boolean; ownerPhone: string }) => {
     const res = await apiClient.post('/store/whatsapp-settings', data);
     return res.data;
   },

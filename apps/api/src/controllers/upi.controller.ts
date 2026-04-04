@@ -82,9 +82,9 @@ export class UpiController {
                 const confirmed = replyText === '1';
 
                 // Find most recent AWAITING order for this brand's phone
-                // We look up by brand's whatsapp phone number id
+                // We look up by the owner's personal WhatsApp number
                 const brandRows = await prisma.$queryRawUnsafe<any[]>(
-                    `SELECT id FROM "User" WHERE "whatsappPhoneNumberId" = $1 LIMIT 1`,
+                    `SELECT id FROM "User" WHERE "ownerPhone" = $1 LIMIT 1`,
                     fromPhone
                 );
 

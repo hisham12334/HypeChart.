@@ -1,8 +1,62 @@
 import { PrismaClient } from '@brand-order-system/database';
-import { sendWhatsAppInteractiveConfirmation } from './whatsapp.service';
+import {
+  getOrderTemplate,
+  sendWhatsAppInteractiveConfirmation,
+  sendWhatsAppMessage,
+} from './whatsapp.service';
 import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
+
+async function sendCustomerOrderConfirmedWhatsApp(order: {
+  orderNumber: string;
+  total: unknown;
+  user: {
+    brandName: string | null;
+    whatsappEnabled: boolean;
+    whatsappPhoneNumberId: string | null;
+    whatsappToken: string | null;
+  };
+  customer: {
+    name: string;
+    phone: string;
+  };
+}) {
+  const template = getOrderTemplate(
+    'confirmed',
+    order.customer.name,
+    order.orderNumber,
+    order.user.brandName || 'Store'
+  );
+
+  if (!template) {
+    return;
+  }
+
+  if (
+    !order.user.whatsappEnabled ||
+    !order.user.whatsappPhoneNumberId ||
+    !order.user.whatsappToken ||
+    !order.customer.phone
+  ) {
+    return;
+  }
+
+  const waResult = await sendWhatsAppMessage(
+    order.user.whatsappPhoneNumberId,
+    order.user.whatsappToken,
+    order.customer.phone,
+    template.templateName,
+    template.parameters
+  );
+
+  if (!waResult.success) {
+    logger.error('Failed to send confirmed WhatsApp message to customer', {
+      orderNumber: order.orderNumber,
+      error: waResult.error,
+    });
+  }
+}
 
 // Generates the UPI intent URL and QR data for a given order
 export function generateUpiIntentUrl(upiId: string, amount: number, orderId: string, brandName: string): string {
@@ -157,12 +211,12 @@ export async function confirmUpiPayment(data: {
 
   // Send WhatsApp interactive message to brand
   const brand = order.user;
-  if (brand.whatsappEnabled && brand.whatsappPhoneNumberId && brand.whatsappToken) {
+  if (brand.whatsappEnabled && brand.whatsappPhoneNumberId && brand.whatsappToken && brand.ownerPhone) {
     try {
       await sendWhatsAppInteractiveConfirmation(
         brand.whatsappPhoneNumberId,
         brand.whatsappToken,
-        brand.whatsappPhoneNumberId, // send to brand's own number — replace with brand owner phone if stored
+        brand.ownerPhone,
         order.orderNumber,
         order.customer.name,
         Number(order.total),
@@ -172,6 +226,11 @@ export async function confirmUpiPayment(data: {
       logger.error('Failed to send WA confirmation to brand', { orderId, error: err.message });
       // Never block order flow
     }
+  } else if (brand.whatsappEnabled && !brand.ownerPhone) {
+    logger.warn('Skipping UPI brand confirmation WhatsApp because ownerPhone is missing', {
+      orderId,
+      brandId: brand.id,
+    });
   }
 
   return { success: true, orderNumber: order.orderNumber };
@@ -207,6 +266,7 @@ export async function handleBrandReply(orderNumber: string, confirmed: boolean) 
       }
     });
 
+    await sendCustomerOrderConfirmedWhatsApp(order);
     logger.info('UPI order confirmed by brand', { orderNumber });
   } else {
     await prisma.order.update({
@@ -224,7 +284,11 @@ export async function handleBrandReply(orderNumber: string, confirmed: boolean) 
 // Admin manual confirm (fallback)
 export async function manualConfirmUpiOrder(orderId: string, userId: string) {
   const order = await prisma.order.findFirst({
-    where: { id: orderId, userId }
+    where: { id: orderId, userId },
+    include: {
+      user: true,
+      customer: true,
+    }
   });
 
   if (!order) throw new Error('Order not found');
@@ -248,5 +312,6 @@ export async function manualConfirmUpiOrder(orderId: string, userId: string) {
     }
   });
 
+  await sendCustomerOrderConfirmedWhatsApp(order);
   return { success: true };
 }

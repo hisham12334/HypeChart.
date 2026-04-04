@@ -20,7 +20,7 @@ export default function PaymentsSettingsPage() {
   const [isSavingKeys, setIsSavingKeys] = useState(false);
 
   // --- WHATSAPP FORM STATE ---
-  const [whatsapp, setWhatsapp] = useState({ phoneNumberId: "", token: "", enabled: false });
+  const [whatsapp, setWhatsapp] = useState({ phoneNumberId: "", token: "", enabled: false, ownerPhone: "" });
   const [waLoading, setWaLoading] = useState(true);
   const [waSaving, setWaSaving] = useState(false);
   const [waConnected, setWaConnected] = useState(false);
@@ -43,6 +43,7 @@ export default function PaymentsSettingsPage() {
             phoneNumberId: res.data.phoneNumberId || "",
             token: res.data.token || "",
             enabled: res.data.enabled,
+            ownerPhone: res.data.ownerPhone || "",
           });
           setWaConnected(res.data.hasToken && !!res.data.phoneNumberId);
         }
@@ -81,6 +82,10 @@ export default function PaymentsSettingsPage() {
     }
     if (!whatsapp.token || whatsapp.token.trim() === '') {
       toast.error("Please enter your WhatsApp Access Token");
+      return;
+    }
+    if (!whatsapp.ownerPhone || whatsapp.ownerPhone.trim() === '') {
+      toast.error("Please enter your WhatsApp number");
       return;
     }
     try {
@@ -340,8 +345,8 @@ export default function PaymentsSettingsPage() {
             {!waLoading && (
               <div
                 className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border ${waConnected
-                    ? 'bg-green-50 text-green-700 border-green-200'
-                    : 'bg-gray-100 text-gray-500 border-gray-200'
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : 'bg-gray-100 text-gray-500 border-gray-200'
                   }`}
               >
                 {waConnected
@@ -395,6 +400,19 @@ export default function PaymentsSettingsPage() {
                     Use a permanent token for production
                   </p>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wa-owner-phone">Your WhatsApp Number</Label>
+                <Input
+                  id="wa-owner-phone"
+                  placeholder="919876543210"
+                  value={whatsapp.ownerPhone}
+                  onChange={(e) => setWhatsapp({ ...whatsapp, ownerPhone: e.target.value.replace(/\D/g, '') })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the number where you want UTR alerts, for example: 919876543210
+                </p>
               </div>
 
               {/* Enable toggle */}

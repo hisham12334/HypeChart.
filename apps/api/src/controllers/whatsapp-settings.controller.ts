@@ -17,6 +17,7 @@ export const getWhatsAppSettings = async (req: Request, res: Response) => {
                 whatsappPhoneNumberId: true,
                 whatsappToken: true,
                 whatsappEnabled: true,
+                ownerPhone: true,
             }
         });
 
@@ -36,6 +37,7 @@ export const getWhatsAppSettings = async (req: Request, res: Response) => {
                 token: maskedToken,
                 hasToken: !!user.whatsappToken,
                 enabled: user.whatsappEnabled ?? false,
+                ownerPhone: user.ownerPhone || '',
             }
         });
     } catch (error: any) {
@@ -51,7 +53,7 @@ export const getWhatsAppSettings = async (req: Request, res: Response) => {
 export const saveWhatsAppSettings = async (req: Request, res: Response) => {
     try {
         const { userId } = (req as any).user;
-        const { phoneNumberId, token, enabled } = req.body;
+        const { phoneNumberId, token, enabled, ownerPhone } = req.body;
 
         if (typeof enabled !== 'boolean') {
             return res.status(400).json({ success: false, error: 'Invalid enabled flag' });
@@ -61,6 +63,7 @@ export const saveWhatsAppSettings = async (req: Request, res: Response) => {
         const updateData: any = {
             whatsappPhoneNumberId: phoneNumberId || null,
             whatsappEnabled: enabled,
+            ownerPhone: ownerPhone || null,
         };
 
         // Only update the token if it's a real new value (not the masked placeholder)

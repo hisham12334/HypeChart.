@@ -35,6 +35,7 @@ model User {
   whatsappPhoneNumberId   String?  // Meta Phone Number ID
   whatsappToken           String?  // Meta Permanent Access Token
   whatsappEnabled         Boolean  @default(false)
+  ownerPhone              String?  // Brand owner's personal WhatsApp number
   // ----------------------------------------
 
   // --- 💸 UPI PAYMENT FIELDS ---

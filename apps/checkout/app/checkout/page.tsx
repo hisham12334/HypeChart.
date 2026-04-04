@@ -35,6 +35,8 @@ function CheckoutContent() {
   const [utrInput, setUtrInput] = useState('');
   const [upiStep, setUpiStep] = useState<'pay' | 'utr' | 'pending'>('pay');
   const [isUpiMode, setIsUpiMode] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [upiCopied, setUpiCopied] = useState(false);
 
   // --- 1. NEW: Form State to capture user inputs ---
   const [formData, setFormData] = useState({
@@ -95,6 +97,25 @@ function CheckoutContent() {
 
     loadItems();
   }, [paramVariantId, paramQuantity]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    setIsMobileDevice(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  }, []);
+
+  const upiId = upiUrl ? new URLSearchParams(upiUrl.split('?')[1] || '').get('pa') : '';
+
+  const handleCopyUpiId = async () => {
+    if (!upiId || typeof navigator === 'undefined' || !navigator.clipboard) return;
+
+    try {
+      await navigator.clipboard.writeText(upiId);
+      setUpiCopied(true);
+      window.setTimeout(() => setUpiCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy UPI ID', error);
+    }
+  };
 
 
   // --- 3. Handle Payment — detects UPI_DIRECT brand or falls through to Razorpay ---
@@ -473,12 +494,31 @@ function CheckoutContent() {
 
                         <a
                           href={upiUrl || '#'}
-                          className="flex items-center justify-center w-full bg-neutral-900 text-white py-4 rounded-lg text-sm font-medium tracking-wide hover:bg-neutral-800 active:scale-[0.98] transition-all"
+                          className="flex items-center justify-center w-full bg-neutral-900 text-white py-4 rounded-lg text-sm font-medium tracking-wide hover:bg-neutral-800 active:scale-[0.98] transition-all md:hidden"
                         >
                           Pay ₹{total} via UPI
                         </a>
 
                         <p className="text-center text-xs text-neutral-400">GPay · PhonePe · Paytm · BHIM · any UPI app</p>
+
+                        {!isMobileDevice && (
+                          <div className="hidden md:block border border-neutral-200 rounded-lg p-4 space-y-3 bg-neutral-50">
+                            <div>
+                              <p className="text-xs uppercase tracking-widest text-neutral-500">UPI ID</p>
+                              <p className="font-mono text-base text-neutral-900 break-all mt-1">{upiId || 'Not available'}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCopyUpiId}
+                              className="w-full bg-neutral-900 text-white py-3 rounded-lg text-sm font-medium tracking-wide hover:bg-neutral-800 active:scale-[0.98] transition-all"
+                            >
+                              {upiCopied ? 'Copied' : 'Copy UPI ID'}
+                            </button>
+                            <p className="text-xs text-neutral-500 leading-relaxed">
+                              Open GPay, PhonePe, Paytm, or any UPI app on your phone and pay manually using this UPI ID.
+                            </p>
+                          </div>
+                        )}
 
                         <button
                           type="button"
