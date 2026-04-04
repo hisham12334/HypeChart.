@@ -244,7 +244,7 @@ function TransactionModal({
                 <div className="grid grid-cols-2 gap-3 mb-6">
                     {[
                         { label: 'Gross Amount', value: formatINR(txn.grossAmount) },
-                        { label: 'Razorpay Fee (2%)', value: formatINR(txn.razorpayFee) },
+                        { label: txn.razorpayFee > 0 ? 'Razorpay Fee (2%)' : 'Gateway Fee', value: formatINR(txn.razorpayFee) },
                         { label: 'Net (Yours)', value: formatINR(txn.netAmount) },
                     ].map(({ label, value }) => (
                         <div
@@ -843,7 +843,7 @@ export default function PaymentsPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-slate-800">
-                                            {['Order', 'Gross', 'Rzp Fee (2%)', 'Net (Yours)', 'Status', 'Settlement Date', 'Payout Date'].map(
+                                            {['Order', 'Gross', 'Fee', 'Net (Yours)', 'Status', 'Settlement Date', 'Payout Date'].map(
                                                 (h) => (
                                                     <th
                                                         key={h}

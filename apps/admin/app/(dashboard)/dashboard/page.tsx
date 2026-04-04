@@ -11,20 +11,23 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await apiClient.get('/analytics');
-        if (res.data.success) {
-          setStats(res.data.data);
-        }
-      } catch (error) {
-        console.error("Failed to load stats", error);
-      } finally {
-        setLoading(false);
+  const fetchStats = async () => {
+    try {
+      const res = await apiClient.get('/analytics');
+      if (res.data.success) {
+        setStats(res.data.data);
       }
-    };
+    } catch (error) {
+      console.error("Failed to load stats", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -35,6 +38,12 @@ export default function DashboardPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <button
+          onClick={fetchStats}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Refresh ↻
+        </button>
       </div>
 
       {/* KPI CARDS */}

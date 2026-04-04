@@ -11,7 +11,7 @@ import { Loader2, Package, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { OrderDetailsDialog } from '@/components/orders/order-details-dialog';
 
-const STATUS_FILTERS = ['All', 'paid', 'confirmed', 'shipped', 'delivered'];
+const STATUS_FILTERS = ['All', 'processing', 'upi_pending', 'paid', 'confirmed', 'shipped', 'delivered'];
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -44,12 +44,16 @@ export default function OrdersPage() {
 
     // Update the order in the local list when status changes in the dialog
     const handleOrderUpdated = (updatedOrder: any) => {
-        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, status: updatedOrder.status } : o));
+        setOrders(prev => prev.map(o =>
+            o.id === updatedOrder.id ? updatedOrder : o
+        ));
         setSelectedOrder(updatedOrder);
     };
 
     const getStatusStyle = (status: string) => {
         switch (status) {
+            case 'upi_pending': return 'bg-orange-100 text-orange-800 border-orange-200';
+            case 'processing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
             case 'paid': return 'bg-green-100 text-green-800 border-green-200';
             case 'confirmed': return 'bg-blue-100 text-blue-800 border-blue-200';
             case 'shipped': return 'bg-purple-100 text-purple-800 border-purple-200';

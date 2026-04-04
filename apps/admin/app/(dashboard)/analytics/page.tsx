@@ -11,19 +11,21 @@ export default function AnalyticsPage() {
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const res = await apiClient.get('/analytics');
-                if (res.data.success) {
-                    setStats(res.data.data);
-                }
-            } catch (error) {
-                console.error("Failed to load analytics", error);
-            } finally {
-                setLoading(false);
+    const fetchStats = async () => {
+        setLoading(true);
+        try {
+            const res = await apiClient.get('/analytics');
+            if (res.data.success) {
+                setStats(res.data.data);
             }
-        };
+        } catch (error) {
+            console.error("Failed to load analytics", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchStats();
     }, []);
 
@@ -31,9 +33,17 @@ export default function AnalyticsPage() {
 
     return (
         <div className="p-6 space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Analytics & Insights</h1>
-                <p className="text-muted-foreground mt-2">Deep dive into your sales performance and customer demographics.</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Analytics & Insights</h1>
+                    <p className="text-muted-foreground mt-2">Deep dive into your sales performance and customer demographics.</p>
+                </div>
+                <button
+                    onClick={fetchStats}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    Refresh ↻
+                </button>
             </div>
 
             {/* --- KPI ROW --- */}
