@@ -32,10 +32,10 @@ export function formatPhoneForWhatsApp(phone: string): string {
  * Parameters must match the {{1}}, {{2}}, {{3}} placeholders in Meta Business Manager.
  *
  * Template bodies (create these in Meta Business Manager as UTILITY templates):
- *   order_placed   → "Hi {{1}}! 🎉 Your order #{{2}} from {{3}} has been placed. Payment received — we'll keep you updated!"
- *   order_confirmed → "Hi {{1}}! ✅ Your order #{{2}} from {{3}} has been confirmed. We'll notify you once it's shipped!"
- *   order_shipped   → "Hi {{1}}! 🚚 Your order #{{2}} from {{3}} has been shipped. We'll notify you when it arrives!"
- *   order_delivered → "Hi {{1}}! 🎉 Your order #{{2}} from {{3}} has been delivered. We hope you love it. Thank you!"
+ *   order_placed   -> "Hi {{1}}! Your order #{{2}} from {{3}} has been placed."
+ *   order_confirmed -> "Hi {{1}}! Your order #{{2}} from {{3}} has been confirmed."
+ *   order_shipped   -> "Hi {{1}}! Your order #{{2}} from {{3}} has been shipped."
+ *   order_delivered -> "Hi {{1}}! Your order #{{2}} from {{3}} has been delivered."
  */
 export function getOrderTemplate(
     status: string,
@@ -68,7 +68,7 @@ const TEMPLATE_NOT_USABLE_CODES = new Set([
 ]);
 
 /**
- * Low-level helper — calls the Meta Cloud API with a single template.
+ * Low-level helper - calls the Meta Cloud API with a single template.
  * Returns the raw result including the Meta error code.
  */
 async function callWhatsAppAPI(
@@ -138,7 +138,6 @@ export async function sendWhatsAppMessage(
             templateName,
         });
 
-        // --- Primary attempt ---
         const primary = await callWhatsAppAPI(
             phoneNumberId, accessToken, formattedPhone, templateName, parameters
         );
@@ -152,15 +151,13 @@ export async function sendWhatsAppMessage(
             return { success: true, messageId: primary.messageId };
         }
 
-        // --- Fallback: template missing / not yet approved ---
         if (primary.errorCode !== undefined && TEMPLATE_NOT_USABLE_CODES.has(primary.errorCode)) {
-            logger.warn('Primary template not usable — falling back to hello_world', {
+            logger.warn('Primary template not usable - falling back to hello_world', {
                 templateName,
                 errorCode: primary.errorCode,
                 toPhone: formattedPhone,
             });
 
-            // hello_world is pre-approved on every WA Business account, no parameters needed
             const fallback = await callWhatsAppAPI(
                 phoneNumberId, accessToken, formattedPhone, 'hello_world', []
             );
@@ -180,7 +177,6 @@ export async function sendWhatsAppMessage(
             return { success: false, error: `Primary: ${primary.error} | Fallback: ${fallback.error}` };
         }
 
-        // Any other API error (bad token, rate limit, etc.) — return as-is
         logger.error('WhatsApp API error (non-template issue)', {
             error: primary.error,
             errorCode: primary.errorCode,
@@ -194,58 +190,92 @@ export async function sendWhatsAppMessage(
     }
 }
 
-// Send interactive confirmation request to brand when customer submits UTR
 export async function sendWhatsAppInteractiveConfirmation(
-  phoneNumberId: string,
-  accessToken: string,
-  toBrandPhone: string,
-  orderNumber: string,
-  customerName: string,
-  amount: number,
-  utr: string
+    phoneNumberId: string,
+    accessToken: string,
+    toBrandPhone: string,
+    orderNumber: string,
+    customerName: string,
+    amount: number,
+    utr: string
 ): Promise<WhatsAppSendResult> {
-  const formattedPhone = formatPhoneForWhatsApp(toBrandPhone);
-  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+    const formattedPhone = formatPhoneForWhatsApp(toBrandPhone);
+    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
-  const body = {
-    messaging_product: 'whatsapp',
-    to: formattedPhone,
-    type: 'interactive',
-    interactive: {
-      type: 'button',
-      body: {
-        text: `🛍️ New Order ${orderNumber}\n👤 ${customerName}\n💰 ₹${amount}\n🔖 UTR: ${utr}\n\nCheck your bank app and confirm payment:`
-      },
-      action: {
-        buttons: [
-          { type: 'reply', reply: { id: '1', title: '✅ Received' } },
-          { type: 'reply', reply: { id: '2', title: '❌ Not Received' } }
-        ]
-      }
+    // Use a standard template message - interactive outbound is blocked by Meta
+    // for business-initiated conversations outside 24hr window.
+    // Brand reads the message and replies "1" to confirm or "2" to dispute.
+    const body = {
+        messaging_product: 'whatsapp',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+            name: 'upi_payment_confirmation',
+            language: { code: 'en' },
+            components: [
+                {
+                    type: 'body',
+                    parameters: [
+                        { type: 'text', text: orderNumber },
+                        { type: 'text', text: customerName },
+                        { type: 'text', text: `₹${amount}` },
+                        { type: 'text', text: utr }
+                    ]
+                }
+            ]
+        }
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json() as any;
+
+        if (!response.ok) {
+            const errCode = data?.error?.code;
+            if (errCode === 132001 || errCode === 132000 || errCode === 132007) {
+                logger.warn('upi_payment_confirmation template not approved, falling back to hello_world', { orderNumber });
+
+                const fallbackBody = {
+                    messaging_product: 'whatsapp',
+                    to: formattedPhone,
+                    type: 'template',
+                    template: {
+                        name: 'hello_world',
+                        language: { code: 'en_US' },
+                        components: []
+                    }
+                };
+
+                const fallbackRes = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify(fallbackBody)
+                });
+
+                const fallbackData = await fallbackRes.json() as any;
+                if (!fallbackRes.ok) {
+                    return { success: false, error: fallbackData?.error?.message };
+                }
+                return { success: true, messageId: fallbackData?.messages?.[0]?.id };
+            }
+
+            return { success: false, error: data?.error?.message || 'Unknown error' };
+        }
+
+        return { success: true, messageId: data?.messages?.[0]?.id };
+    } catch (err: any) {
+        logger.error('WA confirmation send failed', { orderNumber, error: err.message });
+        return { success: false, error: err.message };
     }
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`
-      },
-      body: JSON.stringify(body)
-    });
-
-    const data = await response.json() as any;
-
-    if (!response.ok) {
-      const errMsg = data?.error?.message || 'Unknown error';
-      logger.error('Failed to send WA interactive confirmation', { orderNumber, error: errMsg });
-      return { success: false, error: errMsg };
-    }
-
-    return { success: true, messageId: data?.messages?.[0]?.id };
-  } catch (err: any) {
-    logger.error('WA interactive confirmation exception', { orderNumber, error: err.message });
-    return { success: false, error: err.message };
-  }
 }
