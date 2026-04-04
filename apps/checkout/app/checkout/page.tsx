@@ -36,6 +36,7 @@ function CheckoutContent() {
   const [upiStep, setUpiStep] = useState<'pay' | 'utr' | 'pending'>('pay');
   const [isUpiMode, setIsUpiMode] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [isAndroidDevice, setIsAndroidDevice] = useState(false);
   const [upiCopied, setUpiCopied] = useState(false);
 
   // --- 1. NEW: Form State to capture user inputs ---
@@ -101,9 +102,34 @@ function CheckoutContent() {
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
     setIsMobileDevice(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    setIsAndroidDevice(/Android/i.test(navigator.userAgent));
   }, []);
 
   const upiId = upiUrl ? new URLSearchParams(upiUrl.split('?')[1] || '').get('pa') : '';
+  const upiQuery = upiUrl?.split('?')[1] || '';
+
+  const buildAndroidIntentUrl = (packageName: string) => {
+    if (!upiQuery) return '#';
+    return `intent://pay?${upiQuery}#Intent;scheme=upi;package=${packageName};end`;
+  };
+
+  const mobileUpiApps = [
+    {
+      label: 'Google Pay',
+      href: upiQuery ? `tez://upi/pay?${upiQuery}` : '#',
+      note: 'Open GPay',
+    },
+    {
+      label: 'PhonePe',
+      href: buildAndroidIntentUrl('com.phonepe.app'),
+      note: 'Try PhonePe',
+    },
+    {
+      label: 'Paytm',
+      href: buildAndroidIntentUrl('net.one97.paytm'),
+      note: 'Try Paytm',
+    },
+  ];
 
   const handleCopyUpiId = async () => {
     if (!upiId || typeof navigator === 'undefined' || !navigator.clipboard) return;
@@ -720,13 +746,53 @@ function CheckoutContent() {
                   <p className="text-sm font-semibold text-amber-900">2 steps to confirm your order</p>
                   <p className="text-sm text-amber-700 mt-0.5">Pay below, then come back and enter your UTR number. Order is only confirmed after Step 2.</p>
                 </div>
-                <a
-                  href={upiUrl || '#'}
-                  className="flex items-center justify-center w-full bg-neutral-900 text-white py-5 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
-                >
-                  Pay ₹{total} via UPI
-                </a>
+                {isAndroidDevice ? (
+                  <div className="space-y-3">
+                    {mobileUpiApps.map((app) => (
+                      <a
+                        key={app.label}
+                        href={app.href}
+                        className="flex items-center justify-between w-full bg-neutral-900 text-white py-4 px-5 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                      >
+                        <span>{app.label}</span>
+                        <span className="text-xs text-white/60">{app.note}</span>
+                      </a>
+                    ))}
+                    <a
+                      href={upiUrl || '#'}
+                      className="flex items-center justify-center w-full border-2 border-neutral-900 text-neutral-900 py-4 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                    >
+                      Other UPI apps
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleCopyUpiId}
+                      className="flex items-center justify-center w-full border border-neutral-300 text-neutral-900 py-4 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                    >
+                      {upiCopied ? 'UPI ID Copied' : 'Copy UPI ID'}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <a
+                      href={upiUrl || '#'}
+                      className="flex items-center justify-center w-full bg-neutral-900 text-white py-5 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                    >
+                      Pay ₹{total} via UPI
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleCopyUpiId}
+                      className="flex items-center justify-center w-full border border-neutral-300 text-neutral-900 py-4 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                    >
+                      {upiCopied ? 'UPI ID Copied' : 'Copy UPI ID'}
+                    </button>
+                  </>
+                )}
                 <p className="text-center text-sm text-neutral-400">GPay · PhonePe · Paytm · BHIM · any UPI app</p>
+                <p className="text-center text-xs text-neutral-500 leading-relaxed">
+                  If one app doesn&apos;t open, try another button or copy the UPI ID and pay manually in your preferred UPI app.
+                </p>
               </>
             )}
 
