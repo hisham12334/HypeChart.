@@ -8,6 +8,53 @@ import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
+async function commitUpiInventory(order: {
+  razorpayOrderId: string;
+  items: { variantId: string; quantity: number }[];
+}) {
+  const sessionId = order.razorpayOrderId.replace('upi_pending_', '');
+
+  for (const item of order.items) {
+    await prisma.variant.update({
+      where: { id: item.variantId },
+      data: {
+        inventoryCount: { decrement: item.quantity },
+        reservedCount: { decrement: item.quantity }
+      }
+    });
+
+    await prisma.cartReservation.deleteMany({
+      where: {
+        sessionId,
+        variantId: item.variantId
+      }
+    });
+  }
+}
+
+async function releaseUpiInventory(order: {
+  razorpayOrderId: string;
+  items: { variantId: string; quantity: number }[];
+}) {
+  const sessionId = order.razorpayOrderId.replace('upi_pending_', '');
+
+  for (const item of order.items) {
+    await prisma.variant.update({
+      where: { id: item.variantId },
+      data: {
+        reservedCount: { decrement: item.quantity }
+      }
+    });
+
+    await prisma.cartReservation.deleteMany({
+      where: {
+        sessionId,
+        variantId: item.variantId
+      }
+    });
+  }
+}
+
 async function sendCustomerOrderConfirmedWhatsApp(order: {
   orderNumber: string;
   total: unknown;
@@ -96,6 +143,14 @@ export async function initiateUpiOrder(data: {
 
   if (variants.length !== variantIds.length) {
     throw new Error('One or more items invalid');
+  }
+
+  // Reserve inventory for all items before the pending UPI order is created.
+  const { InventoryService } = await import('./inventory.service');
+  const inventoryService = new InventoryService();
+
+  for (const item of items) {
+    await inventoryService.reserveInventory(item.variantId, sessionId, item.quantity);
   }
 
   let subtotal = 0;
@@ -240,7 +295,7 @@ export async function confirmUpiPayment(data: {
 export async function handleBrandReply(orderNumber: string, confirmed: boolean) {
   const order = await prisma.order.findUnique({
     where: { orderNumber },
-    include: { user: true, customer: true }
+    include: { user: true, customer: true, items: true }
   });
 
   if (!order) throw new Error(`Order ${orderNumber} not found`);
@@ -266,6 +321,7 @@ export async function handleBrandReply(orderNumber: string, confirmed: boolean) 
       }
     });
 
+    await commitUpiInventory(order);
     await sendCustomerOrderConfirmedWhatsApp(order);
     logger.info('UPI order confirmed by brand', { orderNumber });
   } else {
@@ -275,6 +331,8 @@ export async function handleBrandReply(orderNumber: string, confirmed: boolean) 
         upiVerificationStatus: 'DISPUTED'
       }
     });
+
+    await releaseUpiInventory(order);
     logger.info('UPI order disputed by brand', { orderNumber });
   }
 
@@ -288,6 +346,7 @@ export async function manualConfirmUpiOrder(orderId: string, userId: string) {
     include: {
       user: true,
       customer: true,
+      items: true,
     }
   });
 
@@ -312,6 +371,7 @@ export async function manualConfirmUpiOrder(orderId: string, userId: string) {
     }
   });
 
+  await commitUpiInventory(order);
   await sendCustomerOrderConfirmedWhatsApp(order);
   return { success: true };
 }
