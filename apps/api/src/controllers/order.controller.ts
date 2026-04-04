@@ -100,10 +100,20 @@ export class OrderController {
                 });
             }
 
+            const updateData: any = { status };
+
+            if (['confirmed', 'shipped', 'delivered'].includes(status)) {
+                updateData.paymentStatus = 'paid';
+                updateData.upiVerificationStatus = 'CONFIRMED';
+                if (!order.paidAt) {
+                    updateData.paidAt = new Date();
+                }
+            }
+
             // Update the order status
             const updatedOrder = await prisma.order.update({
                 where: { id },
-                data: { status },
+                data: updateData,
                 include: {
                     customer: true,
                     address: true,
@@ -111,6 +121,42 @@ export class OrderController {
                     user: true,
                 }
             });
+
+            // Create transaction for UPI orders being confirmed via status update
+            if (
+                ['confirmed', 'shipped', 'delivered'].includes(status) &&
+                order.paymentStatus === 'upi_pending'
+            ) {
+                try {
+                    await prisma.transaction.upsert({
+                        where: { razorpayOrderId: order.razorpayOrderId },
+                        update: {},
+                        create: {
+                            userId: order.userId,
+                            orderId: order.id,
+                            razorpayOrderId: order.razorpayOrderId,
+                            grossAmount: Number(order.total),
+                            razorpayFee: 0,
+                            platformFee: 0,
+                            netAmount: Number(order.total),
+                            status: 'SETTLED',
+                            capturedAt: new Date(),
+                            settledAt: new Date(),
+                        }
+                    });
+
+                    await prisma.customer.update({
+                        where: { id: order.customerId },
+                        data: {
+                            totalOrders: { increment: 1 },
+                            totalSpent: { increment: Number(order.total) },
+                            lastOrderAt: new Date()
+                        }
+                    });
+                } catch (e) {
+                    console.error('Failed to create UPI transaction record:', e);
+                }
+            }
 
             // Fetch WA credentials via raw SQL (bypasses stale Prisma type cache)
             const brandRows = await prisma.$queryRawUnsafe<any[]>(
