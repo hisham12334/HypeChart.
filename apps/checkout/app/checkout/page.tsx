@@ -118,17 +118,17 @@ function CheckoutContent() {
   const mobileUpiApps = [
     {
       label: 'Google Pay',
-      href: upiQuery ? `tez://upi/pay?${upiQuery}` : '#',
+      href: isAndroidDevice ? (upiQuery ? `tez://upi/pay?${upiQuery}` : '#') : (upiUrl || '#'),
       note: 'Open GPay',
     },
     {
       label: 'PhonePe',
-      href: buildAndroidIntentUrl('com.phonepe.app'),
+      href: isAndroidDevice ? buildAndroidIntentUrl('com.phonepe.app') : (upiUrl || '#'),
       note: 'Try PhonePe',
     },
     {
       label: 'Paytm',
-      href: buildAndroidIntentUrl('net.one97.paytm'),
+      href: isAndroidDevice ? buildAndroidIntentUrl('net.one97.paytm') : (upiUrl || '#'),
       note: 'Try Paytm',
     },
   ];
@@ -762,12 +762,12 @@ function CheckoutContent() {
       {isUpiMode && (
         <div className="fixed inset-0 bg-white z-50 md:hidden flex flex-col">
           {/* Sheet header */}
-          <div className="bg-neutral-900 px-5 pt-10 pb-5 shrink-0">
+          <div className="bg-neutral-900 px-4 pt-7 pb-4 shrink-0">
             {upiStep !== 'pending' && (
               <button
                 type="button"
                 onClick={() => upiStep === 'utr' ? setUpiStep('pay') : setIsUpiMode(false)}
-                className="text-white/50 text-sm hover:text-white transition-colors mb-4 flex items-center gap-1.5"
+                className="text-white/50 text-xs hover:text-white transition-colors mb-3 flex items-center gap-1.5"
               >
                 ← {upiStep === 'utr' ? 'Back' : 'Cancel'}
               </button>
@@ -795,20 +795,20 @@ function CheckoutContent() {
           </div>
 
           {/* Sheet body — scrollable */}
-          <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
+          <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4">
             {upiStep === 'pay' && (
               <>
                 <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3">
-                  <p className="text-sm font-semibold text-amber-900">2 steps to confirm your order</p>
-                  <p className="text-sm text-amber-700 mt-0.5">Pay below, then come back and enter your UTR number. Order is only confirmed after Step 2.</p>
+                  <p className="text-xs font-semibold text-amber-900">2 steps to confirm your order</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Pay below, then come back and enter your UTR number. Order is only confirmed after Step 2.</p>
                 </div>
-                {isAndroidDevice ? (
-                  <div className="space-y-3">
+                {isMobileDevice ? (
+                  <div className="grid grid-cols-1 gap-2.5">
                     {mobileUpiApps.map((app) => (
                       <a
                         key={app.label}
                         href={app.href}
-                        className="flex items-center justify-between w-full bg-neutral-900 text-white py-4 px-5 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                        className="flex items-center justify-between w-full bg-neutral-900 text-white py-3.5 px-4 rounded-xl text-sm font-semibold tracking-wide active:scale-[0.98] transition-all"
                       >
                         <span>{app.label}</span>
                         <span className="text-xs text-white/60">{app.note}</span>
@@ -816,14 +816,14 @@ function CheckoutContent() {
                     ))}
                     <a
                       href={upiUrl || '#'}
-                      className="flex items-center justify-center w-full border-2 border-neutral-900 text-neutral-900 py-4 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                      className="flex items-center justify-center w-full border-2 border-neutral-900 text-neutral-900 py-3.5 rounded-xl text-sm font-semibold tracking-wide active:scale-[0.98] transition-all"
                     >
                       Other UPI apps
                     </a>
                     <button
                       type="button"
                       onClick={handleCopyUpiId}
-                      className="flex items-center justify-center w-full border border-neutral-300 text-neutral-900 py-4 rounded-xl text-base font-semibold tracking-wide active:scale-[0.98] transition-all"
+                      className="flex items-center justify-center w-full border border-neutral-300 text-neutral-900 py-3.5 rounded-xl text-sm font-semibold tracking-wide active:scale-[0.98] transition-all"
                     >
                       {upiCopied ? 'UPI ID Copied' : 'Copy UPI ID'}
                     </button>
@@ -916,12 +916,12 @@ function CheckoutContent() {
 
           {/* Sticky bottom CTA */}
           {upiStep !== 'pending' && (
-            <div className="shrink-0 px-5 pb-8 pt-4 border-t border-neutral-100 bg-white">
+            <div className="shrink-0 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] border-t border-neutral-100 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.06)]">
               {upiStep === 'pay' ? (
                 <button
                   type="button"
                   onClick={() => setUpiStep('utr')}
-                  className="w-full border-2 border-neutral-900 text-neutral-900 py-4 rounded-xl text-base font-semibold active:scale-[0.98] transition-all"
+                  className="w-full border-2 border-neutral-900 text-neutral-900 py-3.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-all"
                 >
                   I've paid — Enter UTR →
                 </button>
