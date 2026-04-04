@@ -37,7 +37,6 @@ function CheckoutContent() {
   const [upiStep, setUpiStep] = useState<'pay' | 'utr' | 'pending'>('pay');
   const [isUpiMode, setIsUpiMode] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
-  const [isAndroidDevice, setIsAndroidDevice] = useState(false);
   const [upiCopied, setUpiCopied] = useState(false);
   const [upiQrCode, setUpiQrCode] = useState<string | null>(null);
 
@@ -104,34 +103,9 @@ function CheckoutContent() {
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
     setIsMobileDevice(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-    setIsAndroidDevice(/Android/i.test(navigator.userAgent));
   }, []);
 
   const upiId = upiUrl ? new URLSearchParams(upiUrl.split('?')[1] || '').get('pa') : '';
-  const upiQuery = upiUrl?.split('?')[1] || '';
-
-  const buildAndroidIntentUrl = (packageName: string) => {
-    if (!upiQuery) return '#';
-    return `intent://pay?${upiQuery}#Intent;scheme=upi;package=${packageName};end`;
-  };
-
-  const mobileUpiApps = [
-    {
-      label: 'Google Pay',
-      href: isAndroidDevice ? (upiQuery ? `tez://upi/pay?${upiQuery}` : '#') : (upiUrl || '#'),
-      note: 'Open GPay',
-    },
-    {
-      label: 'PhonePe',
-      href: isAndroidDevice ? buildAndroidIntentUrl('com.phonepe.app') : (upiUrl || '#'),
-      note: 'Try PhonePe',
-    },
-    {
-      label: 'Paytm',
-      href: isAndroidDevice ? buildAndroidIntentUrl('net.one97.paytm') : (upiUrl || '#'),
-      note: 'Try Paytm',
-    },
-  ];
 
   useEffect(() => {
     let isCancelled = false;
@@ -804,21 +778,11 @@ function CheckoutContent() {
                 </div>
                 {isMobileDevice ? (
                   <div className="grid grid-cols-1 gap-2.5">
-                    {mobileUpiApps.map((app) => (
-                      <a
-                        key={app.label}
-                        href={app.href}
-                        className="flex items-center justify-between w-full bg-neutral-900 text-white py-3.5 px-4 rounded-xl text-sm font-semibold tracking-wide active:scale-[0.98] transition-all"
-                      >
-                        <span>{app.label}</span>
-                        <span className="text-xs text-white/60">{app.note}</span>
-                      </a>
-                    ))}
                     <a
                       href={upiUrl || '#'}
-                      className="flex items-center justify-center w-full border-2 border-neutral-900 text-neutral-900 py-3.5 rounded-xl text-sm font-semibold tracking-wide active:scale-[0.98] transition-all"
+                      className="flex items-center justify-center w-full bg-neutral-900 text-white py-3.5 px-4 rounded-xl text-sm font-semibold tracking-wide active:scale-[0.98] transition-all"
                     >
-                      Other UPI apps
+                      Open UPI App
                     </a>
                     <button
                       type="button"
@@ -827,6 +791,25 @@ function CheckoutContent() {
                     >
                       {upiCopied ? 'UPI ID Copied' : 'Copy UPI ID'}
                     </button>
+                    <div className="border border-neutral-200 rounded-2xl bg-neutral-50 p-4">
+                      <div className="text-center">
+                        <p className="text-xs uppercase tracking-widest text-neutral-500">Scan To Pay</p>
+                        <p className="text-xs text-neutral-500 mt-1">Scan this in any UPI app to auto-fill the exact order amount.</p>
+                      </div>
+                      <div className="mt-4 bg-white border border-neutral-200 rounded-xl p-3 flex justify-center">
+                        {upiQrCode ? (
+                          <img
+                            src={upiQrCode}
+                            alt={`Mobile UPI QR for ₹${total}`}
+                            className="w-44 h-44"
+                          />
+                        ) : (
+                          <div className="w-44 h-44 flex items-center justify-center bg-neutral-100 text-neutral-400 text-sm">
+                            Generating QR...
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -953,6 +936,7 @@ function CheckoutContent() {
       )}
 
       {/* STICKY MOBILE PAYMENT BAR */}
+      {!isUpiMode && (
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 p-4 md:hidden z-50 pb-safe">
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
@@ -969,6 +953,7 @@ function CheckoutContent() {
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }
