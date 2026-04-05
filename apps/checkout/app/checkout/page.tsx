@@ -579,7 +579,7 @@ function CheckoutContent() {
                         <button
                           type="button"
                           onClick={() => setUpiStep('utr')}
-                          className="w-full border-2 border-neutral-900 text-neutral-900 py-3.5 rounded-lg text-sm font-semibold hover:bg-neutral-50 active:scale-[0.98] transition-all"
+                          className="w-full bg-amber-400 text-neutral-950 py-3.5 rounded-lg text-sm font-semibold shadow-sm hover:bg-amber-300 active:scale-[0.98] transition-all"
                         >
                           I've paid — Enter UTR →
                         </button>
@@ -904,7 +904,7 @@ function CheckoutContent() {
                 <button
                   type="button"
                   onClick={() => setUpiStep('utr')}
-                  className="w-full border-2 border-neutral-900 text-neutral-900 py-3.5 rounded-xl text-sm font-semibold active:scale-[0.98] transition-all"
+                  className="w-full bg-amber-400 text-neutral-950 py-3.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-amber-300 active:scale-[0.98] transition-all"
                 >
                   I've paid — Enter UTR →
                 </button>
